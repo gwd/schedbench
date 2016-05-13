@@ -25,7 +25,7 @@ int64_t now(void) {
     int rc;
     struct timespec tp;
 
-    rc = clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+    rc = clock_gettime(CLOCK_MONOTONIC, &tp);
 
     assert(rc == 0);
 
