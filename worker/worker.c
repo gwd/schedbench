@@ -128,8 +128,9 @@ void report(void) {
     if ( (work.last_report == 0)
          || (n - work.last_report) > work.report_interval_ms * MSEC ) {
 
-        printf("{ \"now\":%lld, \"mops\":%llu, \"max_delta\":%llu }\n",
+        printf("{ \"Now\":%lld, \"Mops\":%llu, \"MaxDelta\":%llu }\n",
                n, work.mops_done, work.queue_max_delta);
+        fflush(stdout);
 
         work.queue_max_delta = 0;
 
@@ -143,7 +144,8 @@ void worker_setup(void) {
     
     assert(work.data != MAP_FAILED);
     
-    fprintf(stderr, "Mapped memory at %p\n", work.data);
+    printf("Mapped memory at %p\n", work.data);
+    fflush(stdout);
     
     bzero(work.data, work.size);
     
@@ -210,6 +212,10 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
     }
+
+    fflush(stdout);
+    printf("START JSON\n");
+    fflush(stdout);
 
     eventqueue_loop();
 

@@ -10,3 +10,10 @@ Options:
 
 - Just hard-code a single example (or a couple of typical ones) for
   now, work on control & reporting daemon
+
+Notes:
+
+- xenstore access is available for "kernel-side" things, but not
+  really for "user-side" things; proper access might actually require
+  re-porting libxenstore.a (and its prerequisites) into the rumpkernel
+  userspace.   This seems like a bit of a silly duplication.
