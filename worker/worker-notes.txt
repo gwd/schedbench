@@ -1,0 +1,12 @@
+Apparently rumpkernels don't handle stdin from console; need another
+way of conveying information.
+
+Options:
+
+- Continue to pursue alternate routes
+ - xenstore
+ - config files
+ - rumprun command-line
+
+- Just hard-code a single example (or a couple of typical ones) for
+  now, work on control & reporting daemon

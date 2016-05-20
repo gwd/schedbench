@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <sys/select.h>
 #include <sys/mman.h>
+#include <string.h>
 #include <strings.h>
 
 #define USEC 1000
@@ -61,8 +62,24 @@ struct queue_elem {
     struct queue_elem *next;
 };
 
+struct {
+    char * data;
+    int size;
+    unsigned counter;
+    unsigned index;
+    int64_t start_time;
+    uint64_t mops_done;
+
+    int64_t queue_max_delta;
+
+    // Reporting
+    int64_t report_interval_ms;
+    int64_t last_report;
+    uint64_t last_report_mops;
+} work = { 0 };
+
+
 struct queue_elem *eventqueue = NULL;
-int64_t queue_max_delta = 0;
 
 int eventqueue_insert(struct work_desc wd, uint64_t timer) {
     struct queue_elem *eq, **p;
@@ -93,8 +110,8 @@ int eventqueue_loop(void) {
         
         assert(delta_ns > 0);
 
-        if ( delta_ns > queue_max_delta )
-            queue_max_delta = delta_ns;
+        if ( delta_ns > work.queue_max_delta )
+            work.queue_max_delta = delta_ns;
 
         eq = eventqueue;
         eventqueue = eventqueue->next;
@@ -105,44 +122,31 @@ int eventqueue_loop(void) {
     }
 }
 
-struct {
-    char * data;
-    int size;
-    unsigned counter;
-    unsigned index;
-    int64_t start_time;
-    uint64_t mops_done;
-
-    // Reporting
-    int64_t last_report;
-    uint64_t last_report_mops;
-} work = { 0 };
-
 void report(void) {
     int64_t n = now();
+    
+    if ( (work.last_report == 0)
+         || (n - work.last_report) > work.report_interval_ms * MSEC ) {
 
-    //printf("last_report: %lld now: %lld delta %lld\n", last_report, n, n-last_report);
+        printf("{ \"now\":%lld, \"mops\":%llu, \"max_delta\":%llu }\n",
+               n, work.mops_done, work.queue_max_delta);
 
-    if ( (work.last_report == 0) || (n - work.last_report) > SEC ) {
-        int64_t mops_per_second_total = work.mops_done * SEC / (n - work.start_time);
-        int64_t mops_per_second_period = (work.mops_done - work.last_report_mops) * SEC / (n - work.last_report);
-        printf("Total: %15lld %15lld This: %15lld %15lld Max delta: %15lld \n", work.mops_done, mops_per_second_total, work.mops_done - work.last_report_mops, mops_per_second_period, queue_max_delta);
-        
+        work.queue_max_delta = 0;
+
         work.last_report = n;
-        work.last_report_mops = work.mops_done;
     }
 }
 
 void worker_setup(void) {
     work.size = PAGE_SIZE;
     work.data = mmap(NULL, work.size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-
+    
     assert(work.data != MAP_FAILED);
-
+    
     fprintf(stderr, "Mapped memory at %p\n", work.data);
-
+    
     bzero(work.data, work.size);
-
+    
     work.start_time = now();
 
 }
@@ -158,29 +162,55 @@ void process_worker(struct work_desc wd) {
         (*((volatile int *)work.data+work.index)) &= work.counter++;
     }
     work.mops_done += wd.mops;
-
+    
     report();
-
+    
     eventqueue_insert(wd, wd.wait_nsec);
 }
 
+/* report_interval [report_ms]
+   burnwait [mops] [wait_nsec] */
+int main(int argc, char *argv[]) {
+    int i;
 
-int main(int argc, char * argv[]) {
-    // Setup workers
+    printf("argc: %d\n", argc);
+    
+    work.report_interval_ms = 1000;
+    
     worker_setup();
     
-    // Insert worker(s)
-    struct work_desc wd;
+    for(i=1; i<argc; i++) {
+        if(!strcmp(argv[i], "report_interval")) {
+            i++;
+            if(!(i<argc)) {
+                fprintf(stderr, "Not enough aguments for report_ms");
+                exit(1);
+            }
+            work.report_interval_ms=strtoul(argv[i], NULL, 0);
+        } else if (!strcmp(argv[i], "burnwait")) {
+            struct work_desc wd;
+            
+            i++;
+            if(!(i<argc)) {
+                fprintf(stderr, "Not enough aguments for burnwait");
+                exit(1);
+            }
+            wd.mops=strtoul(argv[i], NULL, 0);
 
-    wd.mops = 2;
-    wd.wait_nsec = 20 * MSEC;
+            i++;
+            if(!(i<argc)) {
+                fprintf(stderr, "Not enough aguments for burnwait");
+                exit(1);
+            }
+            wd.wait_nsec=strtoul(argv[i], NULL, 0);
 
-    eventqueue_insert(wd, 0);
-    eventqueue_insert(wd, 0);
-    eventqueue_insert(wd, 0);
-    eventqueue_insert(wd, 0);
-    eventqueue_insert(wd, 0);
+            eventqueue_insert(wd, 0);
+        } else {
+            fprintf(stderr, "Unknown toplevel command: %s\n", argv[i]);
+            exit(1);
+        }
+    }
 
-    
     eventqueue_loop();
+
 }

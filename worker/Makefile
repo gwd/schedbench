@@ -1,5 +1,11 @@
 RUMPCC=x86_64-rumprun-netbsd-gcc
 CFLAGS += -Werror -g -O2
+#LDFLAGS += -lyajl_s
+
+RUMPCFLAGS = $(CFLAGS)
+#RUMPCFLAGS += -I/build/hg/rumprun-packages.git/pkgs/include/
+RUMPLDFLAGS = $(LDFLAGS) 
+#RUMPLDFLAGS += -L/build/hg/rumprun-packages.git/pkgs/lib
 
 BIN = worker-proc worker-xen.img
 BINALL = $(BIN) worker-xen
@@ -7,11 +13,11 @@ BINALL = $(BIN) worker-xen
 .PHONY: all
 all: $(BIN)
 
-worker-proc: worker.o
-	$(CC) $(LDFLAGS) -o $@ $< 
+worker-proc: worker.c
+	$(CC) -o $@ $< $(LDFLAGS) 
 
 worker-xen: worker.c
-	$(RUMPCC) $(LDFLAGS) -o $@ $< 
+	$(RUMPCC) $(RUMPCFLAGS) -o $@ $< $(RUMPLDFLAGS) 
 
 worker-xen.img: worker-xen
 	rumprun-bake xen_pv worker-xen.img worker-xen
