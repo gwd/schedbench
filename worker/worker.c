@@ -95,10 +95,14 @@ int eventqueue_insert(struct work_desc wd, uint64_t timer) {
     *p = eq;
 }
 
+void report(void);
+
 int eventqueue_loop(void) {
     while(eventqueue) {
         struct queue_elem *eq;
         
+        report();
+    
         int64_t delta_ns = eventqueue->start_ns - now();
         
         if (delta_ns > 0) {
@@ -164,8 +168,6 @@ void process_worker(struct work_desc wd) {
         (*((volatile int *)work.data+work.index)) &= work.counter++;
     }
     work.mops_done += wd.mops;
-    
-    report();
     
     eventqueue_insert(wd, wd.wait_nsec);
 }
