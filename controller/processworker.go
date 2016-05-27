@@ -20,8 +20,8 @@ func (w *ProcessWorker) SetId(i int) {
 	w.id = i
 }
 
-func (w *ProcessWorker) Init() (err error) {
-	w.c = exec.Command("../worker/worker-proc", "burnwait", "20", "20000000")
+func (w *ProcessWorker) Init(p WorkerParams) (err error) {
+	w.c = exec.Command("../worker/worker-proc", p.Args...)
 
 	w.stdout, err = w.c.StdoutPipe()
 	if err != nil {

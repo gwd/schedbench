@@ -14,9 +14,13 @@ type WorkerReport struct {
 	MaxDelta int
 }
 
+type WorkerParams struct {
+	Args []string
+}
+
 type Worker interface {
 	SetId(int)
-	Init() error
+	Init(WorkerParams) error
 	Shutdown()
 	Process(chan WorkerReport, chan bool)
 }
@@ -49,6 +53,14 @@ func Report(ws *WorkerState, r WorkerReport) {
 	ws.LastReport = r
 }
 
+type WorkerList []WorkerState
+
+func (ws *WorkerList) Start(report chan WorkerReport, done chan bool) {
+	for i := range *ws {
+		go (*ws)[i].w.Process(report, done)
+	}
+}
+
 func main() {
 	count := 2
 	
@@ -60,16 +72,16 @@ func main() {
 	
 	i := 0
 
-	Workers := make([]WorkerState, count)
+	Workers := WorkerList(make([]WorkerState, count))
 	
 	for i = 0; i< count; i++ {
 		Workers[i].w = &ProcessWorker{}
 		Workers[i].w.SetId(i)
 		
-		Workers[i].w.Init()
-		
-		go Workers[i].w.Process(report, done)
+		Workers[i].w.Init(WorkerParams{[]string{"burnwait", "20", "20000000"}})
 	}
+
+	Workers.Start(report, done)
 
 	for i > 0 {
 		select {
