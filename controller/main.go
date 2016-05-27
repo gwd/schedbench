@@ -62,6 +62,8 @@ func (ws *WorkerList) Start(report chan WorkerReport, done chan bool) {
 }
 
 func main() {
+	killed := false
+	
 	count := 2
 	
 	report := make(chan WorkerReport)
@@ -92,9 +94,15 @@ func main() {
 			i--;
 			fmt.Println(i, "workers left");
 		case <-signals:
-			fmt.Println("SIGINT receieved, shutting down workers")
-			for j := range Workers {
-				Workers[j].w.Shutdown()
+			if ! killed {
+				fmt.Println("SIGINT receieved, shutting down workers")
+				for j := range Workers {
+					Workers[j].w.Shutdown()
+				}
+				killed = true
+			} else {
+				fmt.Println("Second SIGINT received, exiting without cleaning up")
+				os.Exit(1)
 			}
 		}
 	}
