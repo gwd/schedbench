@@ -4,8 +4,8 @@ BINALL = $(BIN)
 .PHONY: all
 all: $(BIN)
 
-controller: main.go
-	go build -o $@ $<
+controller: main.go processworker.go
+	go build -o $@ $^
 
 .PHONY: clean
 clean:
