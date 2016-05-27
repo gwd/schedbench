@@ -11,16 +11,6 @@ import (
 	
 )
 
-type Worker struct {
-	Id int
-	
-	c *exec.Cmd
-
-	stdout io.ReadCloser
-	
-	jsonStarted bool
-}
-
 type WorkerReport struct {
 	Id int
 	Now int
@@ -28,7 +18,25 @@ type WorkerReport struct {
 	MaxDelta int
 }
 
-func (w *Worker) Init() (err error) {
+type Worker interface {
+	SetId(int)
+	Init() error
+	Shutdown()
+	Process(chan WorkerReport, chan bool)
+}
+
+type ProcessWorker struct {
+	id int
+	c *exec.Cmd
+	stdout io.ReadCloser
+	jsonStarted bool
+}
+
+func (w *ProcessWorker) SetId(i int) {
+	w.id = i
+}
+
+func (w *ProcessWorker) Init() (err error) {
 	w.c = exec.Command("../worker/worker-proc", "burnwait", "20", "20000000")
 
 	w.stdout, err = w.c.StdoutPipe()
@@ -40,11 +48,11 @@ func (w *Worker) Init() (err error) {
 	return
 }
 
-func (w *Worker) Shutdown() {
+func (w *ProcessWorker) Shutdown() {
 	w.c.Process.Kill()
 }
 
-func (w *Worker) Process(report chan WorkerReport, done chan bool) {
+func (w *ProcessWorker) Process(report chan WorkerReport, done chan bool) {
 	w.c.Start()
 
 	scanner := bufio.NewScanner(w.stdout)
@@ -57,7 +65,7 @@ func (w *Worker) Process(report chan WorkerReport, done chan bool) {
 		if w.jsonStarted {
 			var r WorkerReport
 			json.Unmarshal([]byte(s), &r)
-			r.Id = w.Id
+			r.Id = w.id
 			report <- r
 		} else {
 			if s == "START JSON" {
@@ -79,7 +87,7 @@ const (
 )
 
 type WorkerState struct {
-	Worker
+	w Worker
 	LastReport WorkerReport
 }
 
@@ -114,11 +122,12 @@ func main() {
 	Workers := make([]WorkerState, count)
 	
 	for i = 0; i< count; i++ {
-		Workers[i].Id = i
+		Workers[i].w = &ProcessWorker{}
+		Workers[i].w.SetId(i)
 		
-		Workers[i].Init()
+		Workers[i].w.Init()
 		
-		go Workers[i].Process(report, done)
+		go Workers[i].w.Process(report, done)
 	}
 
 	for i > 0 {
@@ -131,7 +140,7 @@ func main() {
 		case <-signals:
 			fmt.Println("SIGINT receieved, shutting down workers")
 			for j := range Workers {
-				Workers[j].Shutdown()
+				Workers[j].w.Shutdown()
 			}
 		}
 	}
