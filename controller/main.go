@@ -75,7 +75,8 @@ func main() {
 	Workers := WorkerList(make([]WorkerState, count))
 	
 	for i = 0; i< count; i++ {
-		Workers[i].w = &ProcessWorker{}
+		//Workers[i].w = &ProcessWorker{}
+		Workers[i].w = &XenWorker{}
 		Workers[i].w.SetId(i)
 		
 		Workers[i].w.Init(WorkerParams{[]string{"burnwait", "20", "20000000"}})
