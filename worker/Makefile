@@ -1,5 +1,5 @@
-RUMPCC=x86_64-rumprun-netbsd-gcc
 CFLAGS += -Werror -g -O2
+LDFLAGS += -static
 #LDFLAGS += -lyajl_s
 
 RUMPCFLAGS = $(CFLAGS)
@@ -25,3 +25,7 @@ worker-xen.img: worker-xen
 .PHONY: clean
 clean:
 	rm -f *.o $(BINALL)
+
+.PHONY: dist
+dist:
+	cp $(BIN) $(DISTDIR)

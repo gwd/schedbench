@@ -10,3 +10,7 @@ controller: main.go processworker.go
 .PHONY: clean
 clean:
 	rm -f $(BINALL)
+
+.PHONY: dist
+dist:
+	cp $(BIN) $(DISTDIR)

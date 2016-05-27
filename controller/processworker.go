@@ -21,7 +21,7 @@ func (w *ProcessWorker) SetId(i int) {
 }
 
 func (w *ProcessWorker) Init(p WorkerParams) (err error) {
-	w.c = exec.Command("../worker/worker-proc", p.Args...)
+	w.c = exec.Command("./worker-proc", p.Args...)
 
 	w.stdout, err = w.c.StdoutPipe()
 	if err != nil {
