@@ -1,0 +1,6 @@
+*.diff
+dist
+controller/controller
+worker/worker-proc
+worker/worker-xen
+worker/worker-xen.img
