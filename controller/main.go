@@ -55,10 +55,43 @@ func Report(ws *WorkerState, r WorkerReport) {
 
 type WorkerList []WorkerState
 
-func (ws *WorkerList) Start(report chan WorkerReport, done chan bool) {
-	for i := range *ws {
-		go (*ws)[i].w.Process(report, done)
+func (ws *WorkerList) Start(report chan WorkerReport, done chan bool) (i int) {
+	i = 0
+	for j := range *ws {
+		go (*ws)[j].w.Process(report, done)
+		i++
 	}
+	return
+}
+
+func (ws *WorkerList) Stop() {
+	for i := range *ws {
+		(*ws)[i].w.Shutdown()
+	}
+}
+
+const (
+	WorkerProcess = iota
+	WorkerXen = iota
+)
+
+func NewWorkerList(count int, workerType int) (ws WorkerList, err error) {
+	ws = WorkerList(make([]WorkerState, count))
+
+	for i := 0; i< count; i++ {
+		switch workerType {
+		case WorkerProcess:
+			ws[i].w = &ProcessWorker{}
+		case WorkerXen:
+			ws[i].w = &XenWorker{}
+		default:
+			err = fmt.Errorf("Unknown type: %d", workerType)
+		}
+		ws[i].w.SetId(i)
+		
+		ws[i].w.Init(WorkerParams{[]string{"burnwait", "20", "20000000"}})
+	}
+	return
 }
 
 func main() {
@@ -72,19 +105,13 @@ func main() {
 
 	signal.Notify(signals, os.Interrupt)
 	
-	i := 0
-
-	Workers := WorkerList(make([]WorkerState, count))
-	
-	for i = 0; i< count; i++ {
-		//Workers[i].w = &ProcessWorker{}
-		Workers[i].w = &XenWorker{}
-		Workers[i].w.SetId(i)
-		
-		Workers[i].w.Init(WorkerParams{[]string{"burnwait", "20", "20000000"}})
+	Workers, err := NewWorkerList(count, WorkerProcess)
+	if err != nil {
+		fmt.Println("Error creating workers: %v", err)
+		return
 	}
-
-	Workers.Start(report, done)
+	
+	i := Workers.Start(report, done)
 
 	for i > 0 {
 		select {
@@ -96,9 +123,7 @@ func main() {
 		case <-signals:
 			if ! killed {
 				fmt.Println("SIGINT receieved, shutting down workers")
-				for j := range Workers {
-					Workers[j].w.Shutdown()
-				}
+				Workers.Stop()
 				killed = true
 			} else {
 				fmt.Println("Second SIGINT received, exiting without cleaning up")
