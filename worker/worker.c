@@ -40,7 +40,8 @@ void nsleep(int64_t wait_ns) {
     tp.tv_sec = wait_ns / SEC;
     tp.tv_nsec = wait_ns % SEC;
 
-    rc = pselect(1, NULL, NULL, NULL, &tp, NULL);
+    //rc = pselect(1, NULL, NULL, NULL, &tp, NULL);
+    nanosleep(&tp, NULL);
 
     assert(rc == 0);
 }
