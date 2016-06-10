@@ -1,10 +1,10 @@
-BIN = controller
+BIN = schedbench
 BINALL = $(BIN)
 
 .PHONY: all
 all: $(BIN)
 
-controller: main.go processworker.go xenworker.go
+schedbench: main.go processworker.go xenworker.go benchmark.go
 	go build -o $@ $^
 
 .PHONY: clean

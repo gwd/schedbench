@@ -1,6 +1,6 @@
 *.diff
 dist
-controller/controller
+controller/schedbench
 worker/worker-proc
 worker/worker-xen
 worker/worker-xen.img
