@@ -105,7 +105,7 @@ func (w *XenWorker) Init(p WorkerParams) (err error) {
 			return
 		}
 
-		fmt.Printf(" %s domid %d\n", w.vmname, w.domid)
+		//fmt.Printf(" %s domid %d\n", w.vmname, w.domid)
 	}
 	
 	// Set xenstore config
@@ -133,7 +133,7 @@ func (w *XenWorker) Init(p WorkerParams) (err error) {
 		//fmt.Printf("json:\n%s\n", string(rcfgBytes))
 		rcfgPath := fmt.Sprintf("/local/domain/%d/rumprun/cfg", w.domid)
 
-		fmt.Printf("Writing to %s, json config %s\n", rcfgPath, rcfgBytes)
+		//fmt.Printf("Writing to %s, json config %s\n", rcfgPath, rcfgBytes)
 		
 		args := []string{"xenstore-write", rcfgPath, string(rcfgBytes)}
 		if mock {

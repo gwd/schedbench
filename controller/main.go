@@ -10,27 +10,48 @@ func main() {
 
 	switch(os.Args[1]) {
 	case "plan":
+		workerA := []string{"burnwait", "20", "20000000"}
+		//workerB := []string{"burnwait", "10", "20000000"}
+		workerB := []string{"burnwait", "1", "20000000",
+			"burnwait", "2", "20000000",
+			"burnwait", "1", "20000000",
+			"burnwait", "1", "20000000",
+			"burnwait", "1", "20000000",
+			"burnwait", "1", "20000000",
+			"burnwait", "3", "20000000",
+		}
+
+
 		plan :=  BenchmarkPlan{
+			WorkerType:WorkerXen,
 			filename:filename,
 			Runs:[]BenchmarkRun{
 				{Label:"baseline-a",
 					Workers:[]WorkerSet{
-						{Params:WorkerParams{[]string{"burnwait", "20", "20000000"}},
+						{Params:WorkerParams{workerA},
 							Count:1}},
-					RuntimeSeconds:5,},
+					RuntimeSeconds:10,},
 				{Label:"baseline-b",
 					Workers:[]WorkerSet{
-						{Params:WorkerParams{[]string{"burnwait", "10", "20000000"}},
+						{Params:WorkerParams{workerB},
 							Count:1}},
-					RuntimeSeconds:5,},
-				{Label:"4a+4b",
-					Workers:[]WorkerSet{
-						{Params:WorkerParams{[]string{"burnwait", "20", "20000000"}},
-							Count:4},
-						{Params:WorkerParams{[]string{"burnwait", "10", "30000000"}},
-							Count:4}},
-					RuntimeSeconds:5,},
+					RuntimeSeconds:10,},
 			}}
+
+
+		for i := 1; i <= 16 ; i *= 2 {
+			label := fmt.Sprintf("%da+%db", i, i)
+			run := BenchmarkRun{
+				Label:label,
+				Workers:[]WorkerSet{
+					{Params:WorkerParams{workerA},
+						Count:i},
+					{Params:WorkerParams{workerB},
+						Count:i}},
+				RuntimeSeconds:10}
+			plan.Runs = append(plan.Runs, run)
+		}
+		
 		err := plan.Save()
 		if err != nil {
 			fmt.Println("Saving plan ", filename, " ", err)
@@ -45,6 +66,19 @@ func main() {
 		}
 	
 		err = plan.Run()
+		if err != nil {
+			fmt.Println("Running benchmark run:", err)
+			os.Exit(1)
+		}
+		
+	case "report":
+		plan, err := LoadBenchmark(filename)
+		if err != nil {
+			fmt.Println("Loading benchmark ", filename, " ", err)
+			os.Exit(1)
+		}
+	
+		err = plan.TextReport()
 		if err != nil {
 			fmt.Println("Running benchmark run:", err)
 			os.Exit(1)

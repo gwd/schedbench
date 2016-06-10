@@ -9,6 +9,12 @@ import (
 	"encoding/json"
 )
 
+type WorkerSummary struct {
+	MaxTput float64
+	AvgTput float64
+	MinTput float64
+}
+
 type WorkerReport struct {
 	Id int
 	Now int
@@ -43,6 +49,14 @@ type WorkerState struct {
 	LastReport WorkerReport
 }
 
+func Throughput(lt int, lm int, t int, m int) (tput float64) {
+	time := float64(t - lt) / SEC
+	mops := m - lm
+	
+	tput = float64(mops) / time
+	return
+}
+
 func Report(ws *WorkerState, r WorkerReport) {
 	//fmt.Println(r)
 
@@ -52,8 +66,8 @@ func Report(ws *WorkerState, r WorkerReport) {
 		time := float64(r.Now - lr.Now) / SEC
 		mops := r.Mops - lr.Mops
 
-		tput := float64(mops) / time
-
+		tput := Throughput(lr.Now, lr.Mops, r.Now, r.Mops)
+		
 		fmt.Printf("%d Time: %2.3f Mops: %d Tput: %4.2f\n", r.Id, time, mops, tput);
 	}
 
@@ -114,19 +128,21 @@ func NewWorkerList(workers []WorkerSet, workerType int) (ws WorkerList, err erro
 }
 
 type BenchmarkRunData struct {
-	Raw []WorkerReport
+	WorkerCount int
+	Raw []WorkerReport       `json:",omitempty"`
+	Summary []WorkerSummary  `json:",omitempty"`
 }
 
 type BenchmarkRun struct {
-	Completed bool
 	Label string
 	Workers []WorkerSet
 	RuntimeSeconds int
+	Completed bool
 	Results BenchmarkRunData 
 }
 
 func (run *BenchmarkRun) Run() (err error) {
-	Workers, err := NewWorkerList(run.Workers, WorkerProcess)
+	Workers, err := NewWorkerList(run.Workers, WorkerXen)
 	if err != nil {
 		fmt.Println("Error creating workers: %v", err)
 		return
@@ -139,6 +155,8 @@ func (run *BenchmarkRun) Run() (err error) {
 	signal.Notify(signals, os.Interrupt)
 	
 	i := Workers.Start(report, done)
+
+	run.Results.WorkerCount = i
 
 	// FIXME:
 	// 1. Make a zero timeout mean "never"
@@ -178,8 +196,121 @@ func (run *BenchmarkRun) Run() (err error) {
 	return
 }
 
+func (run *BenchmarkRun) checkSummary() (done bool, err error) {
+	if run.Results.WorkerCount == 0 {
+		err = fmt.Errorf("Internal error: WorkerCount 0!")
+		return
+	}
+	
+	if len(run.Results.Summary) == run.Results.WorkerCount {
+		done = true
+		return 
+	}
+	
+	if len(run.Results.Summary) != 0 {
+		err = fmt.Errorf("Internal error: len(Summary) %d, len(Workers) %d!\n",
+			len(run.Results.Summary), run.Results.WorkerCount)
+		return
+	}
+
+	return
+}
+
+func (run *BenchmarkRun) Process() (err error) {
+	done, err := run.checkSummary()
+	if done || err != nil {
+		return
+	}
+	
+	wcount := run.Results.WorkerCount
+
+	if len(run.Results.Summary) != 0 {
+		err = fmt.Errorf("Internal error: len(Summary) %d, len(Workers) %d!\n",
+			len(run.Results.Summary), wcount)
+		return
+	}
+
+	run.Results.Summary = make([]WorkerSummary, wcount)
+
+	// FIXME: Filter out results which started before all have started
+	
+	data := make([]struct{
+		startTime int
+		lastTime int
+		lastMops int}, wcount)
+
+	for i := range run.Results.Raw {
+		e := run.Results.Raw[i]
+		if e.Id > wcount {
+			err = fmt.Errorf("Internal error: id %d > wcount %d", e.Id, wcount)
+			return
+		}
+		
+		d := &data[e.Id]
+		s := &run.Results.Summary[e.Id]
+
+		if d.startTime == 0 {
+			d.startTime = e.Now
+		} else {
+			tput := Throughput(d.lastTime, d.lastMops, e.Now, e.Mops)
+		
+			if tput > s.MaxTput {
+				s.MaxTput = tput
+			}
+			if tput < s.MinTput || s.MinTput == 0 {
+				s.MinTput = tput
+			}
+		}
+		d.lastTime = e.Now
+		d.lastMops = e.Mops
+	}
+
+	for i := range data {
+		run.Results.Summary[i].AvgTput = Throughput(data[i].startTime, 0, data[i].lastTime, data[i].lastMops)
+	}
+	
+	return
+}
+
+func (run *BenchmarkRun) TextReport() (err error) {
+	var done bool
+	done, err = run.checkSummary()
+	if err != nil {
+		return
+	}
+	if ! done {
+		err = fmt.Errorf("Run not yet processed")
+		return
+	}
+
+	fmt.Printf("== RUN %s ==", run.Label)
+
+	fmt.Printf(" Workers (%d total):\n", run.Results.WorkerCount)
+	wStart := 0
+	for i := range run.Workers {
+		ws := &run.Workers[i]
+		n := ws.Count
+		params := ""
+		for _, s := range ws.Params.Args {
+			params = fmt.Sprintf("%s %s", params, s)
+		}
+		fmt.Printf("[%d-%d]: %s\n", wStart, wStart+n-1, params)
+		wStart += n
+	}
+
+	fmt.Printf("\n%8s %8s %8s %8s\n", "id", "avg", "min", "max")
+	for i := 0; i < run.Results.WorkerCount; i++ {
+		s := &run.Results.Summary[i]
+		fmt.Printf("%8d %8.2f %8.2f %8.2f\n",
+			i, s.AvgTput, s.MinTput, s.MaxTput)
+	}
+
+	return
+}
+
 type BenchmarkPlan struct {
 	filename string
+	WorkerType int
 	Runs []BenchmarkRun
 }
 
@@ -252,5 +383,27 @@ func (plan *BenchmarkPlan) Save() (err error) {
 	if backupFilename != "" {
 		os.Remove(backupFilename)
 	}
+	return
+}
+
+func (plan *BenchmarkPlan) TextReport() (err error) {
+	for i := range plan.Runs {
+		r := &plan.Runs[i]
+		if ! r.Completed {
+			fmt.Printf("Test [%d] %s not run\n", i, r.Label)
+		}
+
+		err = r.Process()
+		if err != nil {
+			fmt.Printf("Error processing [%d] %s: %v\n", i, r.Label, err)
+			return
+		}
+
+		err = r.TextReport()
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
