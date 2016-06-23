@@ -75,8 +75,7 @@ struct {
 
     // Reporting
     int64_t report_interval_ms;
-    int64_t last_report;
-    uint64_t last_report_mops;
+    int64_t next_report;
 } work = { 0 };
 
 
@@ -130,8 +129,8 @@ int eventqueue_loop(void) {
 void report(void) {
     int64_t n = now();
     
-    if ( (work.last_report == 0)
-         || (n - work.last_report) > work.report_interval_ms * MSEC ) {
+    if ( (work.next_report == 0)
+         || n > work.next_report ) {
 
         printf("{ \"Now\":%lld, \"Mops\":%llu, \"MaxDelta\":%llu }\n",
                n, work.mops_done, work.queue_max_delta);
@@ -139,7 +138,10 @@ void report(void) {
 
         work.queue_max_delta = 0;
 
-        work.last_report = n;
+        if (!work.next_report) 
+            work.next_report = n;
+        
+        work.next_report += work.report_interval_ms * MSEC;
     }
 }
 
