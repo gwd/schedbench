@@ -95,22 +95,24 @@ int eventqueue_insert(struct work_desc wd, uint64_t timer) {
     *p = eq;
 }
 
-void report(void);
+void report(int64_t n);
 
 int eventqueue_loop(void) {
     while(eventqueue) {
         struct queue_elem *eq;
+        int64_t n = now();
         
-        report();
+        report(n);
     
-        int64_t delta_ns = eventqueue->start_ns - now();
+        int64_t delta_ns = eventqueue->start_ns - n;
         
         if (delta_ns > 0) {
             /* FIXME: Racy! If we get preempted here, we'll wait for the wrong amount of time */
             nsleep(delta_ns);
+            n = now();
         }
 
-        delta_ns = now() - eventqueue->start_ns;
+        delta_ns = n - eventqueue->start_ns;
         
         assert(delta_ns > 0);
 
@@ -126,9 +128,7 @@ int eventqueue_loop(void) {
     }
 }
 
-void report(void) {
-    int64_t n = now();
-    
+void report(int64_t n) {
     if ( (work.next_report == 0)
          || n > work.next_report ) {
 
