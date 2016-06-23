@@ -12,13 +12,14 @@ There are three levels:
    processes) that perform some artificial work and report their
    results.
 
- - ''Benchmark Run'' This is a daemon that takes parameters for a
-   benchmark run, starts up the appropriate number of workers in the
-   specified configuration(s), and collects the results.
+ - ''Benchmark Run'' This is a controller process that takes
+   parameters for a benchmark run, starts up the appropriate number of
+   workers in the specified configuration(s), and collects the
+   results.
 
- - ''Benchmark'' In the same daemon, this will execute a series of
-   benchmark runs in order to collect specific information about a
-   scheduler's performance
+ - ''Benchmark'' In the same controller process, this will execute a
+   series of benchmark runs in order to collect specific information
+   about a scheduler's performance
 
  - ''Analysis'' Analyze the results to give information about the benchmark
 
