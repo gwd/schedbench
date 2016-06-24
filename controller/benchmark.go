@@ -33,8 +33,17 @@ type WorkerSummary struct {
 	MinTput float64
 }
 
-type WorkerReport struct {
+type WorkerId struct {
+	Set int
 	Id int
+}
+
+func (wid WorkerId) String() (string) {
+	return fmt.Sprintf("%d:%d", wid.Set, wid.Id)
+}
+
+type WorkerReport struct {
+	Id WorkerId
 	Now int
 	Mops int
 	MaxDelta int
@@ -50,7 +59,7 @@ type WorkerSet struct {
 }
 
 type Worker interface {
-	SetId(int)
+	SetId(WorkerId)
 	Init(WorkerParams) error
 	Shutdown()
 	Process(chan WorkerReport, chan bool)
@@ -86,13 +95,13 @@ func Report(ws *WorkerState, r WorkerReport) {
 
 		tput := Throughput(lr.Now, lr.Mops, r.Now, r.Mops)
 		
-		fmt.Printf("%d Time: %2.3f Mops: %d Tput: %4.2f\n", r.Id, time, mops, tput);
+		fmt.Printf("%v Time: %2.3f Mops: %d Tput: %4.2f\n", r.Id, time, mops, tput);
 	}
 
 	ws.LastReport = r
 }
 
-type WorkerList []WorkerState
+type WorkerList map[WorkerId]*WorkerState
 
 func (ws *WorkerList) Start(report chan WorkerReport, done chan bool) (i int) {
 	i = 0
@@ -114,41 +123,44 @@ const (
 	WorkerXen = iota
 )
 
-func NewWorkerList(workers []WorkerSet, workerType int) (ws WorkerList, err error) {
-	count := 0
+func NewWorkerList(workers []WorkerSet, workerType int) (wl WorkerList, err error) {
+	wl = WorkerList(make(map[WorkerId]*WorkerState))
 
-	// wsi: WorkerSet index
 	for wsi := range workers {
-		count += workers[wsi].Count
-	}
+		for i := 0; i < workers[wsi].Count; i = i+1 {
+			Id := WorkerId{Set:wsi,Id:i}
 
-	fmt.Println("Making ", count, " total workers")
-	ws = WorkerList(make([]WorkerState, count))
+			ws := wl[Id]
 
-	// wli: WorkerList index
-	wli := 0
-	for wsi := range workers {
-		for i := 0; i < workers[wsi].Count; i, wli = i+1, wli+1 {
+			if ws != nil {
+				panic("Duplicate worker for id!")
+			}
+			
+			ws = &WorkerState{}
+			
 			switch workerType {
 			case WorkerProcess:
-				ws[wli].w = &ProcessWorker{}
+				ws.w = &ProcessWorker{}
 			case WorkerXen:
-				ws[wli].w = &XenWorker{}
+				ws.w = &XenWorker{}
 			default:
 				err = fmt.Errorf("Unknown type: %d", workerType)
+				return
 			}
-			ws[wli].w.SetId(wli)
+			
+			ws.w.SetId(Id)
 		
-			ws[wli].w.Init(workers[wsi].Params)
+			ws.w.Init(workers[wsi].Params)
+
+			wl[Id] = ws
 		}
 	}
 	return
 }
 
 type BenchmarkRunData struct {
-	WorkerCount int
 	Raw []WorkerReport       `json:",omitempty"`
-	Summary []WorkerSummary  `json:",omitempty"`
+	Summary map[WorkerId]*WorkerSummary  `json:",omitempty"`
 }
 
 type BenchmarkRun struct {
@@ -174,8 +186,6 @@ func (run *BenchmarkRun) Run() (err error) {
 	
 	i := Workers.Start(report, done)
 
-	run.Results.WorkerCount = i
-
 	// FIXME:
 	// 1. Make a zero timeout mean "never"
 	// 2. Make the signals / timeout thing a bit more rational; signal then timeout shouldn't hard kill
@@ -185,7 +195,7 @@ func (run *BenchmarkRun) Run() (err error) {
 		select {
 		case r := <-report:
 			run.Results.Raw = append(run.Results.Raw, r)
-			Report(&Workers[r.Id], r)
+			Report(Workers[r.Id], r)
 		case <-done:
 			i--;
 			fmt.Println(i, "workers left");
@@ -215,22 +225,11 @@ func (run *BenchmarkRun) Run() (err error) {
 }
 
 func (run *BenchmarkRun) checkSummary() (done bool, err error) {
-	if run.Results.WorkerCount == 0 {
-		err = fmt.Errorf("Internal error: WorkerCount 0!")
-		return
-	}
-	
-	if len(run.Results.Summary) == run.Results.WorkerCount {
+	if run.Results.Summary != nil {
 		done = true
 		return 
 	}
 	
-	if len(run.Results.Summary) != 0 {
-		err = fmt.Errorf("Internal error: len(Summary) %d, len(Workers) %d!\n",
-			len(run.Results.Summary), run.Results.WorkerCount)
-		return
-	}
-
 	return
 }
 
@@ -239,33 +238,31 @@ func (run *BenchmarkRun) Process() (err error) {
 	if done || err != nil {
 		return
 	}
-	
-	wcount := run.Results.WorkerCount
 
-	if len(run.Results.Summary) != 0 {
-		err = fmt.Errorf("Internal error: len(Summary) %d, len(Workers) %d!\n",
-			len(run.Results.Summary), wcount)
-		return
-	}
+	run.Results.Summary = make(map[WorkerId]*WorkerSummary)
 
-	run.Results.Summary = make([]WorkerSummary, wcount)
-
-	// FIXME: Filter out results which started before all have started
-	
-	data := make([]struct{
+	type Data struct{
 		startTime int
 		lastTime int
-		lastMops int}, wcount)
+		lastMops int
+	}
+	
+	data := make(map[WorkerId]*Data)
 
+	// FIXME: Filter out results which started before all have started
 	for i := range run.Results.Raw {
 		e := run.Results.Raw[i]
-		if e.Id > wcount {
-			err = fmt.Errorf("Internal error: id %d > wcount %d", e.Id, wcount)
-			return
-		}
 		
-		d := &data[e.Id]
-		s := &run.Results.Summary[e.Id]
+		d := data[e.Id]
+		if d == nil {
+			d = &Data{}
+			data[e.Id] = d
+		}
+		s := run.Results.Summary[e.Id]
+		if s == nil {
+			s = &WorkerSummary{}
+			run.Results.Summary[e.Id] = s
+		}
 
 		if d.startTime == 0 {
 			d.startTime = e.Now
@@ -283,8 +280,9 @@ func (run *BenchmarkRun) Process() (err error) {
 		d.lastMops = e.Mops
 	}
 
-	for i := range data {
-		run.Results.Summary[i].AvgTput = Throughput(data[i].startTime, 0, data[i].lastTime, data[i].lastMops)
+	for Id := range data {
+		run.Results.Summary[Id].AvgTput = Throughput(data[Id].startTime,
+			0, data[Id].lastTime, data[Id].lastMops)
 	}
 	
 	return
@@ -303,7 +301,6 @@ func (run *BenchmarkRun) TextReport() (err error) {
 
 	fmt.Printf("== RUN %s ==", run.Label)
 
-	fmt.Printf(" Workers (%d total):\n", run.Results.WorkerCount)
 	wStart := 0
 	for i := range run.Workers {
 		ws := &run.Workers[i]
@@ -317,10 +314,9 @@ func (run *BenchmarkRun) TextReport() (err error) {
 	}
 
 	fmt.Printf("\n%8s %8s %8s %8s\n", "id", "avg", "min", "max")
-	for i := 0; i < run.Results.WorkerCount; i++ {
-		s := &run.Results.Summary[i]
-		fmt.Printf("%8d %8.2f %8.2f %8.2f\n",
-			i, s.AvgTput, s.MinTput, s.MaxTput)
+	for id, s := range run.Results.Summary {
+		fmt.Printf("%8v %8.2f %8.2f %8.2f\n",
+			id, s.AvgTput, s.MinTput, s.MaxTput)
 	}
 
 	return

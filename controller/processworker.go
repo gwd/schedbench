@@ -28,13 +28,13 @@ import (
 )
 
 type ProcessWorker struct {
-	id int
+	id WorkerId
 	c *exec.Cmd
 	stdout io.ReadCloser
 	jsonStarted bool
 }
 
-func (w *ProcessWorker) SetId(i int) {
+func (w *ProcessWorker) SetId(i WorkerId) {
 	w.id = i
 }
 

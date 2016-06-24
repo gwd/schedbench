@@ -28,7 +28,7 @@ import (
 )
 
 type XenWorker struct {
-	id int
+	id WorkerId
 	vmname string
 	domid int
 	consoleCmd *exec.Cmd
@@ -52,9 +52,9 @@ type RumpRunConfig struct {
 	Hostname string      `json:"hostname"`
 }
 
-func (w *XenWorker) SetId(i int) {
+func (w *XenWorker) SetId(i WorkerId) {
 	w.id = i
-	w.vmname = fmt.Sprintf("worker-%d", i)
+	w.vmname = fmt.Sprintf("worker-%v", i)
 	w.domid = -1 // INVALID DOMID
 }
 
