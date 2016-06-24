@@ -46,12 +46,12 @@ func main() {
 			filename:filename,
 			Runs:[]BenchmarkRun{
 				{Label:"baseline-a",
-					Workers:[]WorkerSet{
+					WorkerSets:[]WorkerSet{
 						{Params:WorkerParams{workerA},
 							Count:1}},
 					RuntimeSeconds:10,},
 				{Label:"baseline-b",
-					Workers:[]WorkerSet{
+					WorkerSets:[]WorkerSet{
 						{Params:WorkerParams{workerB},
 							Count:1}},
 					RuntimeSeconds:10,},
@@ -62,7 +62,7 @@ func main() {
 			label := fmt.Sprintf("%da+%db", i, i)
 			run := BenchmarkRun{
 				Label:label,
-				Workers:[]WorkerSet{
+				WorkerSets:[]WorkerSet{
 					{Params:WorkerParams{workerA},
 						Count:i},
 					{Params:WorkerParams{workerB},

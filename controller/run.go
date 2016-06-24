@@ -105,7 +105,7 @@ func NewWorkerList(WorkerSets []WorkerSet, workerType int) (wl WorkerList, err e
 }
 
 func (run *BenchmarkRun) Run() (err error) {
-	Workers, err := NewWorkerList(run.Workers, WorkerXen)
+	Workers, err := NewWorkerList(run.WorkerSets, WorkerXen)
 	if err != nil {
 		fmt.Println("Error creating workers: %v", err)
 		return

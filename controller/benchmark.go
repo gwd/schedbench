@@ -84,7 +84,7 @@ type BenchmarkRunData struct {
 
 type BenchmarkRun struct {
 	Label string
-	Workers []WorkerSet
+	WorkerSets []WorkerSet
 	RuntimeSeconds int
 	Completed bool
 	Results BenchmarkRunData 
@@ -168,8 +168,8 @@ func (run *BenchmarkRun) TextReport() (err error) {
 	fmt.Printf("== RUN %s ==", run.Label)
 
 	wStart := 0
-	for i := range run.Workers {
-		ws := &run.Workers[i]
+	for i := range run.WorkerSets {
+		ws := &run.WorkerSets[i]
 		n := ws.Count
 		params := ""
 		for _, s := range ws.Params.Args {
