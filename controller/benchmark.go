@@ -23,13 +23,8 @@ import (
 	"os"
 	"io/ioutil"
 	"encoding/json"
+	"math"
 )
-
-type WorkerSummary struct {
-	MaxTput float64
-	AvgTput float64
-	MinTput float64
-}
 
 type WorkerId struct {
 	Set int
@@ -77,9 +72,26 @@ func Throughput(lt int, lm int, t int, m int) (tput float64) {
 	return
 }
 
+type WorkerSummary struct {
+	MaxTput float64
+	AvgTput float64
+	MinTput float64
+}
+
+type WorkerSetSummary struct {
+	Workers    []WorkerSummary
+	TotalTput     float64
+	MaxTput       float64
+	AvgAvgTput    float64
+	AvgStdDevTput float64
+	AvgMaxTput    float64
+	AvgMinTput    float64
+	MinTput       float64
+}
+
 type BenchmarkRunData struct {
 	Raw []WorkerReport       `json:",omitempty"`
-	Summary map[WorkerId]*WorkerSummary  `json:",omitempty"`
+	Summary []WorkerSetSummary  `json:",omitempty"`
 }
 
 type BenchmarkRun struct {
@@ -88,6 +100,12 @@ type BenchmarkRun struct {
 	RuntimeSeconds int
 	Completed bool
 	Results BenchmarkRunData 
+}
+
+type BenchmarkPlan struct {
+	filename string
+	WorkerType int
+	Runs []BenchmarkRun
 }
 
 func (run *BenchmarkRun) checkSummary() (done bool, err error) {
@@ -105,7 +123,7 @@ func (run *BenchmarkRun) Process() (err error) {
 		return
 	}
 
-	run.Results.Summary = make(map[WorkerId]*WorkerSummary)
+	run.Results.Summary = make([]WorkerSetSummary, len(run.WorkerSets))
 
 	type Data struct{
 		startTime int
@@ -118,18 +136,32 @@ func (run *BenchmarkRun) Process() (err error) {
 	// FIXME: Filter out results which started before all have started
 	for i := range run.Results.Raw {
 		e := run.Results.Raw[i]
+
+		if e.Id.Set > len(run.Results.Summary) {
+			return fmt.Errorf("Internal error: e.Id.Set %d > len(Results.Summary) %d\n",
+				e.Id.Set, len(run.Results.Summary))
+		}
 		
+		if run.Results.Summary[e.Id.Set].Workers == nil {
+			run.Results.Summary[e.Id.Set].Workers = make([]WorkerSummary,
+				run.WorkerSets[e.Id.Set].Count)
+		}
+
+		ws := &run.Results.Summary[e.Id.Set]
+		
+		if e.Id.Id > len(ws.Workers) {
+			return fmt.Errorf("Internal error: e.Id.Id %d > len(Results.Summary[].Workers) %d\n",
+				e.Id.Id, len(ws.Workers))
+		}
+
+		s := &ws.Workers[e.Id.Id]
+
 		d := data[e.Id]
 		if d == nil {
 			d = &Data{}
 			data[e.Id] = d
 		}
-		s := run.Results.Summary[e.Id]
-		if s == nil {
-			s = &WorkerSummary{}
-			run.Results.Summary[e.Id] = s
-		}
-
+			
 		if d.startTime == 0 {
 			d.startTime = e.Now
 		} else {
@@ -141,16 +173,63 @@ func (run *BenchmarkRun) Process() (err error) {
 			if tput < s.MinTput || s.MinTput == 0 {
 				s.MinTput = tput
 			}
+			if tput > ws.MaxTput {
+				ws.MaxTput = tput
+			}
+			if tput < ws.MinTput || ws.MinTput == 0 {
+				ws.MinTput = tput
+			}
 		}
 		d.lastTime = e.Now
 		d.lastMops = e.Mops
 	}
 
-	for Id := range data {
-		run.Results.Summary[Id].AvgTput = Throughput(data[Id].startTime,
-			0, data[Id].lastTime, data[Id].lastMops)
+	for Id, d := range data {
+		ws := &run.Results.Summary[Id.Set]
+		s := &ws.Workers[Id.Id]
+
+		s.AvgTput = Throughput(d.startTime, 0, d.lastTime, d.lastMops)
+		if s.AvgTput > ws.AvgMaxTput {
+			ws.AvgMaxTput = s.AvgTput
+		}
+		if s.AvgTput < ws.AvgMinTput || ws.AvgMinTput == 0 {
+			ws.AvgMinTput = s.AvgTput
+		}
+		
 	}
-	
+
+	// Calculate the average-of-averages for each set
+	for set := range run.Results.Summary {
+		ws := &run.Results.Summary[set]
+		
+		var total float64
+		var count int
+		for id := range ws.Workers {
+			total += ws.Workers[id].AvgTput
+			count++
+		}
+
+		// FIXME -- Is this legit?
+		ws.TotalTput = total
+		ws.AvgAvgTput = total / float64(count)
+	}
+
+	// Then calculate the standard deviation
+	for set := range run.Results.Summary {
+		ws := &run.Results.Summary[set]
+		
+		var total float64
+		var count int
+		
+		for id := range ws.Workers {
+			d := ws.Workers[id].AvgTput - ws.AvgAvgTput
+			total += d * d
+			count++
+		}
+		v := total / float64(count)
+		ws.AvgStdDevTput = math.Sqrt(v)
+	}
+
 	return
 }
 
@@ -165,33 +244,40 @@ func (run *BenchmarkRun) TextReport() (err error) {
 		return
 	}
 
-	fmt.Printf("== RUN %s ==", run.Label)
+	fmt.Printf("== RUN %s ==\n", run.Label)
 
-	wStart := 0
-	for i := range run.WorkerSets {
-		ws := &run.WorkerSets[i]
-		n := ws.Count
+	for set := range run.WorkerSets {
+		ws := &run.WorkerSets[set]
 		params := ""
 		for _, s := range ws.Params.Args {
 			params = fmt.Sprintf("%s %s", params, s)
 		}
-		fmt.Printf("[%d-%d]: %s\n", wStart, wStart+n-1, params)
-		wStart += n
+		fmt.Printf("Set %d: %s\n", set, params)
 	}
 
-	fmt.Printf("\n%8s %8s %8s %8s\n", "id", "avg", "min", "max")
-	for id, s := range run.Results.Summary {
-		fmt.Printf("%8v %8.2f %8.2f %8.2f\n",
-			id, s.AvgTput, s.MinTput, s.MaxTput)
+	fmt.Printf("\n%8s %8s %8s %8s %8s %8s %8s %8s\n", "set", "total", "avgavg", "stdev", "avgmax", "avgmin", "totmax", "totmin")
+	for set := range run.WorkerSets {
+		ws := &run.Results.Summary[set]
+		fmt.Printf("%8d %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f\n",
+			set, ws.TotalTput, ws.AvgAvgTput, ws.AvgStdDevTput, ws.AvgMaxTput, ws.AvgMinTput,
+			ws.MaxTput, ws.MinTput)
+		
 	}
+
+	if false {
+		fmt.Printf("\n%8s %8s %8s %8s\n", "workerid", "avg", "min", "max")
+		for set := range run.Results.Summary {
+			for id := range run.Results.Summary[set].Workers {
+				s := run.Results.Summary[set].Workers[id]
+				fmt.Printf("%2d:%2d    %8.2f %8.2f %8.2f\n",
+					set, id, s.AvgTput, s.MinTput, s.MaxTput)
+			}
+		}
+	}
+
+	fmt.Printf("\n\n")
 
 	return
-}
-
-type BenchmarkPlan struct {
-	filename string
-	WorkerType int
-	Runs []BenchmarkRun
 }
 
 func LoadBenchmark(filename string) (plan BenchmarkPlan, err error) {
