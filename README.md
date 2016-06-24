@@ -1,4 +1,4 @@
-# Overview
+# Summary
 
 sched-sim is a "microbenchmark" for scheduling.  It is designed both
 to be used as an actual benchmark (to measure the effects of
@@ -6,30 +6,28 @@ schedulers on artificial workloads in a repeatable manner) and to
 provide "background competition" for testing the effect of schedulers
 on real-work workloads or other benchmarks.
 
-There are three levels:
+# Motivation
 
- - ''Workers'' These are individual scheduling units (either VMs or
-   processes) that perform some artificial work and report their
-   results.
+The basic problem with testing schedulers is that schedulers are only
+really needed when there's not enough cpu to go around.  So to really
+test the effectiveness of a scheduler, you need to see how workloads
+compete with each other.
 
- - ''Benchmark Run'' This is a controller process that takes
-   parameters for a benchmark run, starts up the appropriate number of
-   workers in the specified configuration(s), and collects the
-   results.
+But normal workloads -- even benchmarks -- typically vary how much cpu
+they use over time; which means that when you run several workloads
+together, how they happen to align can have a dramatic difference on
+how they end up performing -- much more so than the inherent
+performance of the scheduler itself.
 
- - ''Benchmark'' In the same controller process, this will execute a
-   series of benchmark runs in order to collect specific information
-   about a scheduler's performance
+Moreover, different aspects of the workload can get lost in the noise,
+making it difficult to see how changes in the scheduler affect a
+single aspect of scheduling.
 
- - ''Analysis'' Analyze the results to give information about the benchmark
-
-# Quick command reference
-
-- `schedsim plan`: Initialize "plan" for the benchmark in test.bench
-
-- `schedsim run`: Run the runs in test.bench which haven't been completed yet
-
-- `schedsim report`: Collate the data and give a report
+The basic idea of schedbench is to have artificial workloads whose cpu
+utilization properties an be parametrized to isolate specific aspects
+of workloads, and which are constant over time; and then to have a
+controller which will start up a number of them, collect their
+performance results, and then can report on the results.
 
 # Build notes
 
@@ -59,9 +57,20 @@ different sub-directories based on the branch name you're on (if the
 branch is not `master`); so you may want to add a symbolic link from
 `rumprun.git/rumprun` to whatever directory it ends up making.
 
+# Quick command reference
+
+To use schedsim, run the following four commands on your Xen host in
+order:
+
+- `schedsim plan`: Initialize "plan" for the benchmark in test.bench
+
+- `schedsim run`: Run the runs in test.bench which haven't been completed yet
+
+- `schedsim report`: Collate the data and give a report
+
 # Future work
 
 This is definitely a work-in-progress.  My initial goal is just to get
 a basic framework up to speed so that others can add to it.
 
-For short-term work items, see (TODO.md)
+For short-term work items, see [TODO.md]
