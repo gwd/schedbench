@@ -4,7 +4,7 @@ BINALL = $(BIN)
 .PHONY: all
 all: $(BIN)
 
-schedbench: main.go processworker.go xenworker.go benchmark.go
+schedbench: main.go processworker.go xenworker.go benchmark.go run.go
 	go build -o $@ $^
 
 .PHONY: clean
