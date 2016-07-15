@@ -6,7 +6,9 @@
  - Exploration of worker configuration space, 'naming' of some useful worker configs, 'naming' some useful worker mixes
 
 - Running
- - Specify running it in a specific cpupool (to change the scheduler / cpu topology without rebooting or changing hostts)
+ + Specify running it in a specific cpupool (to change the scheduler / cpu topology without rebooting or changing hostts)
+ - Creating cpupools on demand (to run a comarison automatically)
+ - Taking a xentrace
  - Option to re-run tests which have already been run
  - Allow credit1 / credit2 to co-exist in the same 'plan'?
 

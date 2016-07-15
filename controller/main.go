@@ -43,6 +43,7 @@ func main() {
 
 		plan :=  BenchmarkPlan{
 			WorkerType:WorkerXen,
+			WorkerConfig:WorkerConfig{Pool:"schedbench"},
 			filename:filename,
 			Runs:[]BenchmarkRun{
 				{Label:"baseline-a",

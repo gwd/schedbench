@@ -38,7 +38,7 @@ func (w *ProcessWorker) SetId(i WorkerId) {
 	w.id = i
 }
 
-func (w *ProcessWorker) Init(p WorkerParams) (err error) {
+func (w *ProcessWorker) Init(p WorkerParams, g WorkerConfig) (err error) {
 	w.c = exec.Command("./worker-proc", p.Args...)
 
 	w.stdout, err = w.c.StdoutPipe()

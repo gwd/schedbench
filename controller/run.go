@@ -96,7 +96,7 @@ func NewWorkerList(WorkerSets []WorkerSet, workerType int) (wl WorkerList, err e
 			
 			ws.w.SetId(Id)
 		
-			ws.w.Init(WorkerSets[wsi].Params)
+			ws.w.Init(WorkerSets[wsi].Params, WorkerSets[wsi].Config)
 
 			wl[Id] = ws
 		}
@@ -105,6 +105,10 @@ func NewWorkerList(WorkerSets []WorkerSet, workerType int) (wl WorkerList, err e
 }
 
 func (run *BenchmarkRun) Run() (err error) {
+	for wsi := range run.WorkerSets {
+		run.WorkerSets[wsi].Config.PropagateFrom(run.WorkerConfig)
+	}
+	
 	Workers, err := NewWorkerList(run.WorkerSets, WorkerXen)
 	if err != nil {
 		fmt.Println("Error creating workers: %v", err)
@@ -159,14 +163,16 @@ func (run *BenchmarkRun) Run() (err error) {
 
 func (plan *BenchmarkPlan) Run() (err error) {
 	for i := range plan.Runs {
-		if ! plan.Runs[i].Completed {
-			fmt.Printf("Running test [%d] %s\n", i, plan.Runs[i].Label)
-			err = plan.Runs[i].Run()
+		r := &plan.Runs[i];
+		if ! r.Completed {
+			r.WorkerConfig.PropagateFrom(plan.WorkerConfig)
+			fmt.Printf("Running test [%d] %s\n", i, r.Label)
+			err = r.Run()
 			if err != nil {
 				return
 			}
 		}
-		fmt.Printf("Test [%d] %s completed\n", i, plan.Runs[i].Label)
+		fmt.Printf("Test [%d] %s completed\n", i, r.Label)
 		err = plan.Save()
 		if err != nil {
 			fmt.Println("Error saving: ", err)

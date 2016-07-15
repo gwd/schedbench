@@ -46,14 +46,27 @@ type WorkerParams struct {
 	Args []string
 }
 
+type WorkerConfig struct {
+	Pool string
+}
+
+// Propagate unset values from a higher level
+func (l *WorkerConfig) PropagateFrom(g WorkerConfig) {
+	if l.Pool == "" {
+		l.Pool = g.Pool
+	}
+}
+
+
 type WorkerSet struct {
 	Params WorkerParams
+	Config WorkerConfig
 	Count int
 }
 
 type Worker interface {
 	SetId(WorkerId)
-	Init(WorkerParams) error
+	Init(WorkerParams, WorkerConfig) error
 	Shutdown()
 	Process(chan WorkerReport, chan bool)
 }
@@ -97,6 +110,7 @@ type BenchmarkRunData struct {
 type BenchmarkRun struct {
 	Label string
 	WorkerSets []WorkerSet
+	WorkerConfig
 	RuntimeSeconds int
 	Completed bool
 	Results BenchmarkRunData 
@@ -105,6 +119,9 @@ type BenchmarkRun struct {
 type BenchmarkPlan struct {
 	filename string
 	WorkerType int
+	// Global options for workers that will be over-ridden by Run
+	// and WorkerSet config options
+	WorkerConfig
 	Runs []BenchmarkRun
 }
 

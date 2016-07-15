@@ -58,7 +58,7 @@ func (w *XenWorker) SetId(i WorkerId) {
 	w.domid = -1 // INVALID DOMID
 }
 
-func (w *XenWorker) Init(p WorkerParams) (err error) {
+func (w *XenWorker) Init(p WorkerParams, g WorkerConfig) (err error) {
 	mock := false
 	
 	// Make xl config file
@@ -79,6 +79,10 @@ func (w *XenWorker) Init(p WorkerParams) (err error) {
 	fmt.Fprintf(cfg, "memory = 32\n")
 	fmt.Fprintf(cfg, "vcpus = 1\n")
 	fmt.Fprintf(cfg, "on_crash = 'destroy'\n")
+
+	if g.Pool != "" {
+		fmt.Fprintf(cfg, "pool = '%s'\n", g.Pool)
+	}
 
 	
 	// xl create -p [filename]
