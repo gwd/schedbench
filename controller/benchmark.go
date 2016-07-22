@@ -87,21 +87,45 @@ func Throughput(lt int, lm int, t int, m int) (tput float64) {
 	return
 }
 
+func Utilization(lt int, lct time.Duration, t int, ct time.Duration) (util float64) {
+	util = float64(ct - lct) / float64(t - lt)
+	return
+}
+
+type MinMax struct {
+	Min float64
+	Max float64
+}
+
+func (mm *MinMax) Update(x float64) {
+	if x > mm.Max {
+		mm.Max = x
+	}
+	if x < mm.Min || mm.Min == 0 {
+		mm.Min = x
+	}
+}
+
 type WorkerSummary struct {
-	MaxTput float64
+	MinMaxTput MinMax
+	MinMaxUtil MinMax
 	AvgTput float64
-	MinTput float64
+	AvgUtil float64
 }
 
 type WorkerSetSummary struct {
 	Workers    []WorkerSummary
 	TotalTput     float64
-	MaxTput       float64
 	AvgAvgTput    float64
+	MinMaxTput    MinMax
+	MinMaxAvgTput MinMax
 	AvgStdDevTput float64
-	AvgMaxTput    float64
-	AvgMinTput    float64
-	MinTput       float64
+
+	TotalUtil     float64
+	MinMaxUtil    MinMax
+	MinMaxAvgUtil MinMax
+	AvgAvgUtil    float64
+	AvgStdDevUtil float64
 }
 
 type BenchmarkRunData struct {
@@ -146,8 +170,10 @@ func (run *BenchmarkRun) Process() (err error) {
 
 	type Data struct{
 		startTime int
+		startCputime time.Duration
 		lastTime int
 		lastMops int
+		lastCputime time.Duration
 	}
 	
 	data := make(map[WorkerId]*Data)
@@ -183,24 +209,19 @@ func (run *BenchmarkRun) Process() (err error) {
 			
 		if d.startTime == 0 {
 			d.startTime = e.Now
+			d.startCputime = e.Cputime
 		} else {
 			tput := Throughput(d.lastTime, d.lastMops, e.Now, e.Mops)
-		
-			if tput > s.MaxTput {
-				s.MaxTput = tput
-			}
-			if tput < s.MinTput || s.MinTput == 0 {
-				s.MinTput = tput
-			}
-			if tput > ws.MaxTput {
-				ws.MaxTput = tput
-			}
-			if tput < ws.MinTput || ws.MinTput == 0 {
-				ws.MinTput = tput
-			}
+			util := Utilization(d.lastTime, d.lastCputime, e.Now, e.Cputime)
+
+			s.MinMaxTput.Update(tput)
+			s.MinMaxUtil.Update(util)
+			ws.MinMaxTput.Update(tput)
+			ws.MinMaxUtil.Update(util)
 		}
 		d.lastTime = e.Now
 		d.lastMops = e.Mops
+		d.lastCputime = e.Cputime
 	}
 
 	for Id, d := range data {
@@ -208,45 +229,51 @@ func (run *BenchmarkRun) Process() (err error) {
 		s := &ws.Workers[Id.Id]
 
 		s.AvgTput = Throughput(d.startTime, 0, d.lastTime, d.lastMops)
-		if s.AvgTput > ws.AvgMaxTput {
-			ws.AvgMaxTput = s.AvgTput
-		}
-		if s.AvgTput < ws.AvgMinTput || ws.AvgMinTput == 0 {
-			ws.AvgMinTput = s.AvgTput
-		}
-		
+		s.AvgUtil = Utilization(d.startTime, d.startCputime, d.lastTime, d.lastCputime)
+
+		ws.MinMaxAvgTput.Update(s.AvgTput)
+		ws.MinMaxAvgUtil.Update(s.AvgUtil)
 	}
 
 	// Calculate the average-of-averages for each set
 	for set := range run.Results.Summary {
 		ws := &run.Results.Summary[set]
 		
-		var total float64
+		var totalTput float64
+		var totalUtil float64
 		var count int
 		for id := range ws.Workers {
-			total += ws.Workers[id].AvgTput
+			totalTput += ws.Workers[id].AvgTput
+			totalUtil += ws.Workers[id].AvgUtil
 			count++
 		}
 
 		// FIXME -- Is this legit?
-		ws.TotalTput = total
-		ws.AvgAvgTput = total / float64(count)
+		ws.TotalTput = totalTput
+		ws.TotalUtil = totalUtil
+		ws.AvgAvgTput = totalTput / float64(count)
+		ws.AvgAvgUtil = totalUtil / float64(count)
 	}
 
 	// Then calculate the standard deviation
 	for set := range run.Results.Summary {
 		ws := &run.Results.Summary[set]
 		
-		var total float64
+		var totalAvgTput float64
+		var totalAvgUtil float64
 		var count int
 		
 		for id := range ws.Workers {
-			d := ws.Workers[id].AvgTput - ws.AvgAvgTput
-			total += d * d
+			d1 := ws.Workers[id].AvgTput - ws.AvgAvgTput
+			d2 := ws.Workers[id].AvgUtil - ws.AvgAvgUtil
+			totalAvgTput += d1 * d1
+			totalAvgUtil += d2 * d2
 			count++
 		}
-		v := total / float64(count)
-		ws.AvgStdDevTput = math.Sqrt(v)
+		v1 := totalAvgTput / float64(count)
+		v2 := totalAvgUtil / float64(count)
+		ws.AvgStdDevTput = math.Sqrt(v1)
+		ws.AvgStdDevUtil = math.Sqrt(v2)
 	}
 
 	return
@@ -274,22 +301,26 @@ func (run *BenchmarkRun) TextReport() (err error) {
 		fmt.Printf("Set %d: %s\n", set, params)
 	}
 
-	fmt.Printf("\n%8s %8s %8s %8s %8s %8s %8s %8s\n", "set", "total", "avgavg", "stdev", "avgmax", "avgmin", "totmax", "totmin")
+	fmt.Printf("\n%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s\n", "set", "ttotal", "tavgavg", "tstdev", "tavgmax", "tavgmin", "ttotmax", "ttotmin", "utotal", "uavgavg", "ustdev", "uavgmax", "uavgmin", "utotmax", "utotmin")
 	for set := range run.WorkerSets {
 		ws := &run.Results.Summary[set]
-		fmt.Printf("%8d %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f\n",
-			set, ws.TotalTput, ws.AvgAvgTput, ws.AvgStdDevTput, ws.AvgMaxTput, ws.AvgMinTput,
-			ws.MaxTput, ws.MinTput)
-		
+		fmt.Printf("%8d %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f\n",
+			set,
+			ws.TotalTput, ws.AvgAvgTput, ws.AvgStdDevTput, ws.MinMaxAvgTput.Max,
+			ws.MinMaxAvgTput.Min, ws.MinMaxTput.Max, ws.MinMaxTput.Min,
+			ws.TotalUtil, ws.AvgAvgUtil, ws.AvgStdDevUtil, ws.MinMaxAvgUtil.Max,
+			ws.MinMaxAvgUtil.Min, ws.MinMaxUtil.Max, ws.MinMaxUtil.Min)
 	}
 
-	if false {
-		fmt.Printf("\n%8s %8s %8s %8s\n", "workerid", "avg", "min", "max")
+	if true {
+		fmt.Printf("\n%8s %8s %8s %8s %8s %8s %8s\n", "workerid", "tavg", "tmin", "tmax", "uavg", "umin", "umax")
 		for set := range run.Results.Summary {
 			for id := range run.Results.Summary[set].Workers {
 				s := run.Results.Summary[set].Workers[id]
-				fmt.Printf("%2d:%2d    %8.2f %8.2f %8.2f\n",
-					set, id, s.AvgTput, s.MinTput, s.MaxTput)
+				fmt.Printf("%2d:%2d    %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f\n",
+					set, id,
+					s.AvgTput, s.MinMaxTput.Min, s.MinMaxTput.Max,
+					s.AvgUtil, s.MinMaxUtil.Min, s.MinMaxUtil.Max)
 			}
 		}
 	}
