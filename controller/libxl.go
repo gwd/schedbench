@@ -114,3 +114,17 @@ func (Ctx *Context) DomainInfo(Id Domid) (di *Dominfo, err error) {
 	di.Domain_type = int32(cdi.domain_type)
 	return
 }
+
+func (Ctx *Context) DomainUnpause(Id Domid) (err error) {
+	if Ctx.ctx == nil {
+		err = fmt.Errorf("Context not opened")
+		return
+	}
+
+	ret := C.libxl_domain_unpause(Ctx.ctx, C.uint32_t(Id))
+
+	if ret != 0 {
+		err = fmt.Errorf("libxl_domain_unpause failed: %d", ret)
+	}
+	return
+}

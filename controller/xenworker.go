@@ -232,16 +232,8 @@ func (w *XenWorker) Shutdown() {
 
 // FIXME: Return an error
 func (w *XenWorker) Process(report chan WorkerReport, done chan bool) {
-	mock := false
-	
-	// xl unpause [vmname]
-	args := []string{"xl", "unpause", w.vmname}
-	if mock {
-		args = append([]string{"echo"}, args...)
-	}
-	e := exec.Command(args[0], args[1:]...)
-
-	err := e.Run()
+	// // xl unpause [vmname]
+	err := xg.Ctx.DomainUnpause(Domid(w.domid))
 	if err != nil {
 		fmt.Printf("Error unpausing domain: %v\n", err)
 		return
