@@ -57,6 +57,12 @@ different sub-directories based on the branch name you're on (if the
 branch is not `master`); so you may want to add a symbolic link from
 `rumprun.git/rumprun` to whatever directory it ends up making.
 
+The xen code also builds against libxl.  At the moment this is
+hardcoded to the directory where I have libxl built on my dev box.  On
+your system you can either edit `Makefile/controller`, putting your
+built xen path in XENLIB_PATH, or remove both XENLIB_PATH and the two
+runes which reference it (leaving the library names intact).
+
 # Quick command reference
 
 To use schedsim, run the following four commands on your Xen host in

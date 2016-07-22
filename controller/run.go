@@ -41,7 +41,7 @@ func Report(ws *WorkerState, r WorkerReport) {
 
 		tput := Throughput(lr.Now, lr.Mops, r.Now, r.Mops)
 		
-		fmt.Printf("%v Time: %2.3f Mops: %d Tput: %4.2f\n", r.Id, time, mops, tput);
+		fmt.Printf("%v Time: %2.3f Mops: %d Tput: %4.2f Cputime: %v\n", r.Id, time, mops, tput, r.Cputime);
 	}
 
 	ws.LastReport = r

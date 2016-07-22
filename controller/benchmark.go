@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"math"
+	"time"
 )
 
 type WorkerId struct {
@@ -40,6 +41,7 @@ type WorkerReport struct {
 	Now int
 	Mops int
 	MaxDelta int
+	Cputime time.Duration
 }
 
 type WorkerParams struct {
