@@ -29,15 +29,15 @@ func main() {
 
 	switch(os.Args[1]) {
 	case "plan":
-		workerA := []string{"burnwait", "20", "20000000"}
+		workerA := []string{"burnwait", "1", "20000000"}
 		//workerB := []string{"burnwait", "10", "20000000"}
-		workerB := []string{"burnwait", "1", "20000000",
-			"burnwait", "2", "20000000",
-			"burnwait", "1", "20000000",
-			"burnwait", "1", "20000000",
-			"burnwait", "1", "20000000",
-			"burnwait", "1", "20000000",
-			"burnwait", "3", "20000000",
+		workerB := []string{"burnwait", "1", "30000000",
+			"burnwait", "2", "30000000",
+			"burnwait", "1", "30000000",
+			"burnwait", "1", "30000000",
+			"burnwait", "1", "30000000",
+			"burnwait", "1", "30000000",
+			"burnwait", "3", "30000000",
 		}
 
 
@@ -57,7 +57,6 @@ func main() {
 							Count:1}},
 					RuntimeSeconds:10,},
 			}}
-
 
 		for i := 1; i <= 16 ; i *= 2 {
 			label := fmt.Sprintf("%da+%db", i, i)
@@ -98,7 +97,7 @@ func main() {
 			os.Exit(1)
 		}
 	
-		err = plan.TextReport(2)
+		err = plan.TextReport(0)
 		if err != nil {
 			fmt.Println("Running benchmark run:", err)
 			os.Exit(1)
