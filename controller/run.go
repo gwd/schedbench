@@ -172,9 +172,14 @@ func (run *BenchmarkRun) Run() (err error) {
 	for i > 0 {
 		select {
 		case r := <-report:
-			run.Results.Raw = append(run.Results.Raw, r)
-			Report(Workers[r.Id], r)
+			if ! stopped {
+				run.Results.Raw = append(run.Results.Raw, r)
+				Report(Workers[r.Id], r)
+			}
 		case <-done:
+			if ! stopped {
+				fmt.Println("WARNING: Worker left early")
+			}
 			i--;
 			fmt.Println(i, "workers left");
 		case <-timeout:
