@@ -39,14 +39,17 @@ func Report(ws *WorkerState, r WorkerReport) {
 	lr := ws.LastReport
 
 	if (lr.Now > 0) {
-		time := float64(r.Now - lr.Now) / SEC
+		time := float64(r.Now) / SEC
+		dtime := float64(r.Now - lr.Now) / SEC
 		mops := r.Mops - lr.Mops
 
 		tput := Throughput(lr.Now, lr.Mops, r.Now, r.Mops)
 
 		util := Utilization(lr.Now, lr.Cputime, r.Now, r.Cputime)
 		
-		fmt.Printf("%v Time: %2.3f Mops: %d Tput: %4.2f Cputime: %v Util: %4.2f\n", r.Id, time, mops, tput, r.Cputime, util);
+		fmt.Printf("%v %8.3f [%8.3f] cpu %8.3f [%8.3f] Mops: %8d [%8d] Tput: %4.2f Util: %4.2f\n",
+			r.Id, time, dtime, r.Cputime.Seconds(), r.Cputime.Seconds() - lr.Cputime.Seconds(),
+			r.Mops, mops, tput, util);
 	}
 
 	ws.LastReport = r

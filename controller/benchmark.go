@@ -115,8 +115,12 @@ func (mm *MinMax) Update(x float64) {
 }
 
 type WorkerSummary struct {
+	Raw []WorkerReport
 	MinMaxTput MinMax
 	MinMaxUtil MinMax
+	TotalTput int
+	TotalTime time.Duration
+	TotalCputime time.Duration
 	AvgTput float64
 	AvgUtil float64
 }
@@ -201,7 +205,7 @@ func (run *BenchmarkRun) Process() (err error) {
 		}
 
 		ws := &run.Results.Summary[e.Id.Set]
-		
+
 		if e.Id.Id > len(ws.Workers) {
 			return fmt.Errorf("Internal error: e.Id.Id %d > len(Results.Summary[].Workers) %d\n",
 				e.Id.Id, len(ws.Workers))
@@ -209,6 +213,8 @@ func (run *BenchmarkRun) Process() (err error) {
 
 		s := &ws.Workers[e.Id.Id]
 
+		s.Raw = append(s.Raw, e)
+		
 		d := data[e.Id]
 		if d == nil {
 			d = &Data{}
@@ -236,6 +242,10 @@ func (run *BenchmarkRun) Process() (err error) {
 		ws := &run.Results.Summary[Id.Set]
 		s := &ws.Workers[Id.Id]
 
+		s.TotalTput = d.lastMops
+		s.TotalTime = time.Duration(d.lastTime - d.startTime)
+		s.TotalCputime = d.lastCputime - d.startCputime
+		
 		s.AvgTput = Throughput(d.startTime, 0, d.lastTime, d.lastMops)
 		s.AvgUtil = Utilization(d.startTime, d.startCputime, d.lastTime, d.lastCputime)
 
@@ -287,7 +297,7 @@ func (run *BenchmarkRun) Process() (err error) {
 	return
 }
 
-func (run *BenchmarkRun) TextReport() (err error) {
+func (run *BenchmarkRun) TextReport(level int) (err error) {
 	var done bool
 	done, err = run.checkSummary()
 	if err != nil {
@@ -320,15 +330,25 @@ func (run *BenchmarkRun) TextReport() (err error) {
 			ws.MinMaxAvgUtil.Min, ws.MinMaxUtil.Max, ws.MinMaxUtil.Min)
 	}
 
-	if true {
-		fmt.Printf("\n%8s %8s %8s %8s %8s %8s %8s\n", "workerid", "tavg", "tmin", "tmax", "uavg", "umin", "umax")
+	if level >= 1 {
+ 		fmt.Printf("\n%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s\n", "workerid", "toput", "time", "cpu", "tavg", "tmin", "tmax", "uavg", "umin", "umax")
 		for set := range run.Results.Summary {
 			for id := range run.Results.Summary[set].Workers {
 				s := run.Results.Summary[set].Workers[id]
-				fmt.Printf("%2d:%2d    %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f\n",
+				fmt.Printf("%2d:%2d    %10d %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f %8.2f\n",
 					set, id,
+					s.TotalTput, s.TotalTime.Seconds(), s.TotalCputime.Seconds(),
 					s.AvgTput, s.MinMaxTput.Min, s.MinMaxTput.Max,
 					s.AvgUtil, s.MinMaxUtil.Min, s.MinMaxUtil.Max)
+
+				if level >= 2 {
+					for _, e := range s.Raw {
+						time := float64(e.Now) / SEC
+						fmt.Printf ("   [%8.3f] %8.3f %8d %12d\n", time,
+							e.Cputime.Seconds(), e.Mops, e.MaxDelta)
+					}
+				}
+
 			}
 		}
 	}
@@ -391,7 +411,7 @@ func (plan *BenchmarkPlan) Save() (err error) {
 	return
 }
 
-func (plan *BenchmarkPlan) TextReport() (err error) {
+func (plan *BenchmarkPlan) TextReport(level int) (err error) {
 	for i := range plan.Runs {
 		r := &plan.Runs[i]
 		if ! r.Completed {
@@ -404,7 +424,7 @@ func (plan *BenchmarkPlan) TextReport() (err error) {
 			return
 		}
 
-		err = r.TextReport()
+		err = r.TextReport(level)
 		if err != nil {
 			return
 		}

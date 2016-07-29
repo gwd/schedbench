@@ -98,7 +98,7 @@ func main() {
 			os.Exit(1)
 		}
 	
-		err = plan.TextReport()
+		err = plan.TextReport(2)
 		if err != nil {
 			fmt.Println("Running benchmark run:", err)
 			os.Exit(1)
