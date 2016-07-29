@@ -95,6 +95,7 @@ func (w *XenWorker) Init(p WorkerParams, g WorkerConfig) (err error) {
 	fmt.Fprintf(cfg, "memory = 32\n")
 	fmt.Fprintf(cfg, "vcpus = 1\n")
 	fmt.Fprintf(cfg, "on_crash = 'destroy'\n")
+	fmt.Fprintf(cfg, "tsc_mode = 'native'\n")
 
 	if g.Pool != "" {
 		fmt.Fprintf(cfg, "pool = '%s'\n", g.Pool)

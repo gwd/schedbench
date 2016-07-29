@@ -23,6 +23,9 @@ import (
 	"os"
 	"os/signal"
 	"time"
+	"regexp"
+	"strconv"
+	"bufio"
 )
 
 type WorkerState struct {
@@ -106,9 +109,45 @@ func NewWorkerList(WorkerSets []WorkerSet, workerType int) (wl WorkerList, err e
 	return
 }
 
+var CpukHZ uint64
+
+func getCpuHz() (err error) {
+	if CpukHZ == 0 {
+		var cpuinfo *os.File
+		cpuinfo, err = os.Open("/proc/cpuinfo")
+		if err != nil {
+			return
+		}
+		re := regexp.MustCompile("^cpu MHz\\s*: ([0-9.]+)$")
+		scanner := bufio.NewScanner(cpuinfo)
+		for scanner.Scan() {
+			s := scanner.Text()
+			m := re.FindStringSubmatch(s)
+			if m != nil {
+				var MHZ float64
+				MHZ, err = strconv.ParseFloat(m[1], 64)
+				if err != nil {
+					return
+				}
+				CpukHZ = uint64(MHZ*1000)
+				break
+			}
+		}
+		if CpukHZ == 0 {
+			err = fmt.Errorf("Couldn't find cpu MHz")
+			return
+		} else {
+			fmt.Println("CpukHZ: ", CpukHZ)
+			
+		}
+	}
+	return
+}
+
 func (run *BenchmarkRun) Run() (err error) {
 	for wsi := range run.WorkerSets {
 		run.WorkerSets[wsi].Config.PropagateFrom(run.WorkerConfig)
+		run.WorkerSets[wsi].Params.SetkHZ(CpukHZ)
 	}
 	
 	Workers, err := NewWorkerList(run.WorkerSets, WorkerXen)
@@ -164,6 +203,12 @@ func (run *BenchmarkRun) Run() (err error) {
 }
 
 func (plan *BenchmarkPlan) Run() (err error) {
+
+	err = getCpuHz()
+	if err != nil {
+		return
+	}
+	
 	for i := range plan.Runs {
 		r := &plan.Runs[i];
 		if ! r.Completed {

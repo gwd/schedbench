@@ -40,15 +40,35 @@
 
 #define PAGE_SIZE 4096
 
+static inline uint64_t rdtsc(void)
+{
+    uint32_t low, high;
+
+    __asm__ __volatile__("rdtsc" : "=a" (low), "=d" (high));
+
+    return ((uint64_t)high << 32) | low;
+}
+
+uint64_t start_tsc, kHZ=0;
+
+void init_clock(void) {
+    start_tsc = rdtsc();
+}
+
+void set_kHZ(uint64_t val) {
+    kHZ = val;
+}
+
 int64_t now(void) {
     int rc;
     struct timespec tp;
 
-    rc = clock_gettime(CLOCK_MONOTONIC, &tp);
+    if (kHZ == 0) {
+        fprintf(stderr, "now(): kHZ uninitialized!\n");
+        while(1);
+    }
 
-    assert(rc == 0);
-
-    return tp.tv_sec * SEC + tp.tv_nsec;
+    return (rdtsc()-start_tsc) * MSEC / kHZ;
 }
 
 void nsleep(int64_t wait_ns) {
@@ -196,16 +216,27 @@ void process_worker(struct work_desc wd) {
 /* report_interval [report_ms]
    burnwait [mops] [wait_nsec] */
 int main(int argc, char *argv[]) {
+
+    init_clock();
+    
     int i;
 
     printf("argc: %d\n", argc);
     
     work.report_interval_ms = 1000;
     
-    worker_setup();
-    
     for(i=1; i<argc; i++) {
-        if(!strcmp(argv[i], "report_interval")) {
+        if(!strcmp(argv[i], "kHZ")) {
+            uint64_t setkHZ;
+            i++;
+            if(!(i<argc)) {
+                fprintf(stderr, "Not enough aguments for kHZ");
+                exit(1);
+            }
+            setkHZ = strtoull(argv[i], NULL, 0);
+            printf("Setting kHZ to %llu\n", setkHZ);
+            set_kHZ(setkHZ);
+        } else if(!strcmp(argv[i], "report_interval")) {
             i++;
             if(!(i<argc)) {
                 fprintf(stderr, "Not enough aguments for report_ms");
@@ -236,6 +267,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    if(kHZ == 0) {
+        fprintf(stderr, "kHZ not set!\n");
+        while(1);
+    }
+    
+    worker_setup();
+    
     fflush(stdout);
     printf("START JSON\n");
     fflush(stdout);

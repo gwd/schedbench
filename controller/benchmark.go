@@ -48,6 +48,14 @@ type WorkerParams struct {
 	Args []string
 }
 
+func (l *WorkerParams) SetkHZ(kHZ uint64) {
+	if l.Args[0] == "kHZ" {
+		l.Args[1] = fmt.Sprintf("%d", kHZ)
+	} else {
+		l.Args = append([]string{"kHZ", fmt.Sprintf("%d", kHZ)}, l.Args...)
+	}
+}
+
 type WorkerConfig struct {
 	Pool string
 }
