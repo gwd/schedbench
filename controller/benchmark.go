@@ -342,10 +342,23 @@ func (run *BenchmarkRun) TextReport(level int) (err error) {
 					s.AvgUtil, s.MinMaxUtil.Min, s.MinMaxUtil.Max)
 
 				if level >= 2 {
+					var le WorkerReport
 					for _, e := range s.Raw {
+						var dtime float64
+						var dCputime time.Duration
+						var dKops int
 						time := float64(e.Now) / SEC
-						fmt.Printf ("   [%8.3f] %8.3f %8d %12d\n", time,
-							e.Cputime.Seconds(), e.Kops, e.MaxDelta)
+						if e.Now > le.Now {
+							dtime = float64(e.Now - le.Now) / SEC
+							dCputime = e.Cputime - le.Cputime
+							dKops = e.Kops - le.Kops
+
+						}
+						fmt.Printf ("   [%8.3f] (%8.3f) %8.3f (%8.3f) %8d (%8d) %12d\n",
+							time, dtime,
+							e.Cputime.Seconds(), dCputime.Seconds(),
+							e.Kops, dKops, e.MaxDelta)
+						le = e
 					}
 				}
 

@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -29,9 +30,9 @@ func main() {
 
 	switch(os.Args[1]) {
 	case "plan":
-		workerA := []string{"burnwait", "7", "20000"}
+		workerA := []string{"burnwait", "70", "200000"}
 		//workerB := []string{"burnwait", "10", "20000000"}
-		workerB := []string{"burnwait", "100", "3000000",
+		workerB := []string{"burnwait", "10", "300000",
 			"burnwait", "20", "300000",
 			"burnwait", "10", "300000",
 			"burnwait", "10", "300000",
@@ -91,13 +92,17 @@ func main() {
 		}
 		
 	case "report":
+		verbosity := 0
+		if len(os.Args) > 2 {
+			verbosity, _ = strconv.Atoi(os.Args[2])
+		}
 		plan, err := LoadBenchmark(filename)
 		if err != nil {
 			fmt.Println("Loading benchmark ", filename, " ", err)
 			os.Exit(1)
 		}
 	
-		err = plan.TextReport(0)
+		err = plan.TextReport(verbosity)
 		if err != nil {
 			fmt.Println("Running benchmark run:", err)
 			os.Exit(1)
