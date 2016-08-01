@@ -74,13 +74,6 @@ type WorkerSet struct {
 	Count int
 }
 
-type Worker interface {
-	SetId(WorkerId)
-	Init(WorkerParams, WorkerConfig) error
-	Shutdown()
-	Process(chan WorkerReport, chan bool)
-}
-
 const (
 	USEC = 1000
 	MSEC = USEC * 1000

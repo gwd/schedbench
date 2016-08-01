@@ -32,6 +32,7 @@ type ProcessWorker struct {
 	c *exec.Cmd
 	stdout io.ReadCloser
 	jsonStarted bool
+	Log []string
 }
 
 func (w *ProcessWorker) SetId(i WorkerId) {
@@ -54,7 +55,19 @@ func (w *ProcessWorker) Shutdown() {
 	w.c.Process.Kill()
 }
 
-func (w *ProcessWorker) Process(report chan WorkerReport, done chan bool) {
+func (w *ProcessWorker) DumpLog(f io.Writer) (err error) {
+	b := bufio.NewWriter(f)
+	defer b.Flush()
+	for _, line := range w.Log {
+		_, err = fmt.Println(b, line)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (w *ProcessWorker) Process(report chan WorkerReport, done chan WorkerId) {
 	w.c.Start()
 
 	scanner := bufio.NewScanner(w.stdout)
@@ -63,6 +76,7 @@ func (w *ProcessWorker) Process(report chan WorkerReport, done chan bool) {
 		s := scanner.Text()
 		
 		//fmt.Println("Got these bytes: ", s);
+		w.Log = append(w.Log, s)
 
 		if w.jsonStarted {
 			var r WorkerReport
@@ -77,7 +91,7 @@ func (w *ProcessWorker) Process(report chan WorkerReport, done chan bool) {
 		}
 	}
 
-	done <- true
+	done <- w.id
 
 	w.c.Wait()
 }

@@ -42,6 +42,7 @@ type XenWorker struct {
 	consoleCmd *exec.Cmd
 	console io.ReadCloser
 	jsonStarted bool
+	Log []string
 }
 
 // We have to capitalize the element names so that the json class can
@@ -231,8 +232,22 @@ func (w *XenWorker) Shutdown() {
 	}
 }
 
+func (w *XenWorker) DumpLog(f io.Writer) (err error) {
+	b := bufio.NewWriter(f)
+	defer b.Flush()
+	for _, line := range w.Log {
+		_, err = fmt.Fprintln(b, line)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+
+
 // FIXME: Return an error
-func (w *XenWorker) Process(report chan WorkerReport, done chan bool) {
+func (w *XenWorker) Process(report chan WorkerReport, done chan WorkerId) {
 	// // xl unpause [vmname]
 	err := xg.Ctx.DomainUnpause(Domid(w.domid))
 	if err != nil {
@@ -244,6 +259,8 @@ func (w *XenWorker) Process(report chan WorkerReport, done chan bool) {
 
 	for scanner.Scan() {
 		s := scanner.Text()
+
+		w.Log = append(w.Log, s)
 		
 		//fmt.Println("Got these bytes: ", s);
 
@@ -265,7 +282,7 @@ func (w *XenWorker) Process(report chan WorkerReport, done chan bool) {
 		}
 	}
 
-	done <- true
+	done <- w.id
 
 	w.consoleCmd.Wait()
 }

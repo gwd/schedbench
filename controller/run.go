@@ -26,11 +26,20 @@ import (
 	"regexp"
 	"strconv"
 	"bufio"
+	"io"
 )
 
 type WorkerState struct {
 	w Worker
 	LastReport WorkerReport
+}
+
+type Worker interface {
+	SetId(WorkerId)
+	Init(WorkerParams, WorkerConfig) error
+	Shutdown()
+	Process(chan WorkerReport, chan WorkerId)
+	DumpLog(io.Writer) error
 }
 
 func Report(ws *WorkerState, r WorkerReport) {
@@ -57,7 +66,7 @@ func Report(ws *WorkerState, r WorkerReport) {
 
 type WorkerList map[WorkerId]*WorkerState
 
-func (ws *WorkerList) Start(report chan WorkerReport, done chan bool) (i int) {
+func (ws *WorkerList) Start(report chan WorkerReport, done chan WorkerId) (i int) {
 	i = 0
 	for j := range *ws {
 		go (*ws)[j].w.Process(report, done)
@@ -160,7 +169,7 @@ func (run *BenchmarkRun) Run() (err error) {
 	}
 	
 	report := make(chan WorkerReport)
-	done := make(chan bool)
+	done := make(chan WorkerId)
 	signals := make(chan os.Signal, 1)
 
 	signal.Notify(signals, os.Interrupt)
@@ -179,12 +188,16 @@ func (run *BenchmarkRun) Run() (err error) {
 				run.Results.Raw = append(run.Results.Raw, r)
 				Report(Workers[r.Id], r)
 			}
-		case <-done:
+		case did := <-done:
 			if ! stopped {
-				fmt.Println("WARNING: Worker left early")
+				fmt.Println("WARNING: Worker", did, "left early, shutting down workers")
+				Workers.Stop()
+				stopped = true
+				err = fmt.Errorf("Worker %v exited early", did)
+				Workers[did].w.DumpLog(os.Stdout)
 			}
 			i--;
-			fmt.Println(i, "workers left");
+			fmt.Printf("Worker %v exited; %d workers left\n", did, i);
 		case <-timeout:
 			if ! stopped {
 				Workers.Stop()
@@ -201,7 +214,6 @@ func (run *BenchmarkRun) Run() (err error) {
 				}
 				err = fmt.Errorf("Interrupted")
 			} else {
-				err = fmt.Errorf("Interrupted")
 				fmt.Println("SIGINT received after stop, exiting without cleaning up")
 				return
 			}

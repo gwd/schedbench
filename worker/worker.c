@@ -151,8 +151,8 @@ int eventqueue_loop(void) {
         }
 
         delta_ns = n - eventqueue->start_ns;
-        
-        assert(delta_ns > 0);
+
+        assert(delta_ns >= 0);
 
         if ( delta_ns > work.queue_max_delta )
             work.queue_max_delta = delta_ns;
