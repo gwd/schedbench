@@ -68,11 +68,11 @@ runes which reference it (leaving the library names intact).
 To use schedsim, run the following four commands on your Xen host in
 order:
 
-- `schedsim plan`: Initialize "plan" for the benchmark in test.bench
+- `schedbench plan`: Initialize "plan" for the benchmark in test.bench
 
-- `schedsim run`: Run the runs in test.bench which haven't been completed yet
+- `schedbench run`: Run the runs in test.bench which haven't been completed yet
 
-- `schedsim report`: Collate the data and give a report
+- `schedbench report`: Collate the data and give a report
 
 # Future work
 

@@ -29,15 +29,15 @@ func main() {
 
 	switch(os.Args[1]) {
 	case "plan":
-		workerA := []string{"burnwait", "1", "20000000"}
+		workerA := []string{"burnwait", "7", "20000"}
 		//workerB := []string{"burnwait", "10", "20000000"}
-		workerB := []string{"burnwait", "1", "30000000",
-			"burnwait", "2", "30000000",
-			"burnwait", "1", "30000000",
-			"burnwait", "1", "30000000",
-			"burnwait", "1", "30000000",
-			"burnwait", "1", "30000000",
-			"burnwait", "3", "30000000",
+		workerB := []string{"burnwait", "100", "3000000",
+			"burnwait", "20", "300000",
+			"burnwait", "10", "300000",
+			"burnwait", "10", "300000",
+			"burnwait", "10", "300000",
+			"burnwait", "10", "300000",
+			"burnwait", "30", "300000",
 		}
 
 

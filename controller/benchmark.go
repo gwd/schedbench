@@ -39,7 +39,7 @@ func (wid WorkerId) String() (string) {
 type WorkerReport struct {
 	Id WorkerId
 	Now int
-	Mops int
+	Kops int
 	MaxDelta int
 	Cputime time.Duration
 }
@@ -89,9 +89,9 @@ const (
 
 func Throughput(lt int, lm int, t int, m int) (tput float64) {
 	time := float64(t - lt) / SEC
-	mops := m - lm
+	kops := m - lm
 	
-	tput = float64(mops) / time
+	tput = float64(kops) / time
 	return
 }
 
@@ -184,7 +184,7 @@ func (run *BenchmarkRun) Process() (err error) {
 		startTime int
 		startCputime time.Duration
 		lastTime int
-		lastMops int
+		lastKops int
 		lastCputime time.Duration
 	}
 	
@@ -225,7 +225,7 @@ func (run *BenchmarkRun) Process() (err error) {
 			d.startTime = e.Now
 			d.startCputime = e.Cputime
 		} else {
-			tput := Throughput(d.lastTime, d.lastMops, e.Now, e.Mops)
+			tput := Throughput(d.lastTime, d.lastKops, e.Now, e.Kops)
 			util := Utilization(d.lastTime, d.lastCputime, e.Now, e.Cputime)
 
 			s.MinMaxTput.Update(tput)
@@ -234,7 +234,7 @@ func (run *BenchmarkRun) Process() (err error) {
 			ws.MinMaxUtil.Update(util)
 		}
 		d.lastTime = e.Now
-		d.lastMops = e.Mops
+		d.lastKops = e.Kops
 		d.lastCputime = e.Cputime
 	}
 
@@ -242,11 +242,11 @@ func (run *BenchmarkRun) Process() (err error) {
 		ws := &run.Results.Summary[Id.Set]
 		s := &ws.Workers[Id.Id]
 
-		s.TotalTput = d.lastMops
+		s.TotalTput = d.lastKops
 		s.TotalTime = time.Duration(d.lastTime - d.startTime)
 		s.TotalCputime = d.lastCputime - d.startCputime
 		
-		s.AvgTput = Throughput(d.startTime, 0, d.lastTime, d.lastMops)
+		s.AvgTput = Throughput(d.startTime, 0, d.lastTime, d.lastKops)
 		s.AvgUtil = Utilization(d.startTime, d.startCputime, d.lastTime, d.lastCputime)
 
 		ws.MinMaxAvgTput.Update(s.AvgTput)
@@ -345,7 +345,7 @@ func (run *BenchmarkRun) TextReport(level int) (err error) {
 					for _, e := range s.Raw {
 						time := float64(e.Now) / SEC
 						fmt.Printf ("   [%8.3f] %8.3f %8d %12d\n", time,
-							e.Cputime.Seconds(), e.Mops, e.MaxDelta)
+							e.Cputime.Seconds(), e.Kops, e.MaxDelta)
 					}
 				}
 

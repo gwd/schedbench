@@ -85,9 +85,9 @@ void nsleep(int64_t wait_ns) {
 }
 
 // Work description:
-// - Do mops million operations
+// - Do kops thousand operations
 struct work_desc {
-    uint64_t mops;
+    uint64_t kops;
     uint64_t wait_nsec;
     // uint64_t deadline_nsec;
 };
@@ -107,7 +107,7 @@ struct {
     unsigned counter;
     unsigned index;
     int64_t start_time;
-    uint64_t mops_done;
+    uint64_t kops_done;
 
     int64_t queue_max_delta;
 
@@ -170,8 +170,8 @@ void report(int64_t n) {
     if ( (work.next_report == 0)
          || n > work.next_report ) {
 
-        printf("{ \"Now\":%lld, \"Mops\":%llu, \"MaxDelta\":%llu }\n",
-               n, work.mops_done, work.queue_max_delta);
+        printf("{ \"Now\":%lld, \"Kops\":%llu, \"MaxDelta\":%llu }\n",
+               n, work.kops_done, work.queue_max_delta);
         fflush(stdout);
 
         work.queue_max_delta = 0;
@@ -202,19 +202,19 @@ void process_worker(struct work_desc wd) {
     int i;
     
     // Write sequentially to data for mops operations
-    for ( i=0; i < wd.mops * 1000000 ; i++) {
+    for ( i=0; i < wd.kops * 1000 ; i++) {
         work.index++;
         if (work.index > work.size / sizeof(int))
             work.index -= work.size / sizeof(int);
         (*((volatile int *)work.data+work.index)) &= work.counter++;
     }
-    work.mops_done += wd.mops;
+    work.kops_done += wd.kops;
     
     eventqueue_insert(wd, wd.wait_nsec);
 }
 
 /* report_interval [report_ms]
-   burnwait [mops] [wait_nsec] */
+   burnwait [kops] [wait_nsec] */
 int main(int argc, char *argv[]) {
 
     init_clock();
@@ -251,7 +251,7 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "Not enough aguments for burnwait");
                 exit(1);
             }
-            wd.mops=strtoul(argv[i], NULL, 0);
+            wd.kops=strtoul(argv[i], NULL, 0);
 
             i++;
             if(!(i<argc)) {
