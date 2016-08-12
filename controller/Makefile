@@ -13,7 +13,7 @@ CGO_LIBS = -lyajl -lxenlight
 XENLIB_PATH ?= /build/hg/xen.git/dist/install/usr/local/lib/
 CGO_LDFLAGS = -L$(XENLIB_PATH) -Wl,-rpath-link=$(XENLIB_PATH) $(CGO_LIBS)
 
-schedbench: main.go processworker.go xenworker.go benchmark.go run.go libxl.go
+schedbench: main.go processworker.go xenworker.go benchmark.go run.go libxl.go htmlreport.go
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" CGO_CFLAGS="$(CGO_CFLAGS)" go build -o $@ $^
 
 .PHONY: clean

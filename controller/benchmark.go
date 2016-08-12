@@ -438,3 +438,4 @@ func (plan *BenchmarkPlan) TextReport(level int) (err error) {
 
 	return
 }
+

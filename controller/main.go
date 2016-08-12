@@ -107,6 +107,18 @@ func main() {
 			fmt.Println("Running benchmark run:", err)
 			os.Exit(1)
 		}
+	case "htmlreport":
+		plan, err := LoadBenchmark(filename)
+		if err != nil {
+			fmt.Println("Loading benchmark ", filename, " ", err)
+			os.Exit(1)
+		}
+	
+		err = plan.HTMLReport()
+		if err != nil {
+			fmt.Println("Running benchmark run:", err)
+			os.Exit(1)
+		}
 	default:
 		fmt.Println("Unknown argument: ", os.Args[1])
 	}
