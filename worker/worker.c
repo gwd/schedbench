@@ -144,10 +144,12 @@ int eventqueue_loop(void) {
     
         int64_t delta_ns = eventqueue->start_ns - n;
         
-        if (delta_ns > 0) {
+        while (delta_ns > 0) {
             /* FIXME: Racy! If we get preempted here, we'll wait for the wrong amount of time */
             nsleep(delta_ns);
             n = now();
+            // Deal gracefully with time jitter due to moving across sockets
+            delta_ns = eventqueue->start_ns - n;
         }
 
         delta_ns = n - eventqueue->start_ns;
