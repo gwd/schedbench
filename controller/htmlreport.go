@@ -26,16 +26,17 @@ import (
 )
 
 type OptionAxis struct {
-	Title string `json:"title"`
+	Title string `json:"title,omitempty"`
+	// Always include this one so that we can start graphs at 0
 	MinValue float64 `json:"minValue"`
-	MaxValue float64 `json:"maxValue"`
+	MaxValue float64 `json:"maxValue,omitempty"`
 }
 
 type Options struct {
-	Title string     `json:"title"`
+	Title string     `json:"title,omitempty"`
 	HAxis OptionAxis `json:"hAxis"`
 	VAxis OptionAxis `json:"vAxis"`
-	Legend string    `json:"legend"`
+	Legend string    `json:"legend,omitempty"`
 }
 
 type Point struct {
@@ -44,18 +45,21 @@ type Point struct {
 }
 
 type RunRaw struct {
-	Label string
+	Tag string
+	Title string
+	hTitle string
+	vTitle string
 	Points [][]Point
 }
 
-func (options *Options) OutputJavascript(w io.Writer, id int) (err error) {
+func (options *Options) OutputJavascript(w io.Writer, tag string) (err error) {
 	var optionsJson []byte
 	optionsJson, err = json.Marshal(options)
 	if err != nil {
 		return
 	}
 
-	fmt.Fprintf(w, "        var sp%dopt = ", id)
+	fmt.Fprintf(w, "        var %sopt = ", tag)
 	fmt.Fprint(w, string(optionsJson))
 	fmt.Fprintln(w, ";")
 
@@ -75,41 +79,29 @@ func (p *Point) OutputJson(w io.Writer, id int, max int) (err error) {
 	return
 }
 
-func (d *RunRaw) OutputHTML(w io.Writer, run int) (err error) {
-	fmt.Fprintf(w, "    <div class='scatterplot' id='scatterplot%d'></div>\n", run)
+func (d *RunRaw) OutputHTML(w io.Writer) (err error) {
+	fmt.Fprintf(w, "    <div class='scatterplot' id='scatterplot%s'></div>\n", d.Tag)
 	return
 }
 
-func (d *RunRaw) OutputJavascript(w io.Writer, run int) (err error) {
+func (d *RunRaw) OutputJavascript(w io.Writer) (err error) {
 	var options Options
 
-	options.Title = fmt.Sprintf("Run %s (%d) Individual Throughput", d.Label, run)
-	options.HAxis.Title = "Time"
-	options.VAxis.Title = "Throughput"
+	options.Title = d.Title
+	options.HAxis.Title = d.hTitle
+	options.VAxis.Title = d.vTitle
 
-	var xmm MinMax
-	var ymm MinMax
-	for i := range d.Points {
-		for j := range d.Points[i] {
-			xmm.Update(d.Points[i][j].x)
-			ymm.Update(d.Points[i][j].y)
-		}
-	}
-
-	options.HAxis.MaxValue = xmm.Max
-	options.VAxis.MaxValue = ymm.Max
-
-	err = options.OutputJavascript(w, run)
+	err = options.OutputJavascript(w, d.Tag)
 	if err != nil {
 		return
 	}
 
-	fmt.Printf("        var sp%ddata = new google.visualization.DataTable();\n", run)
-	fmt.Printf("        sp%ddata.addColumn('number', 'Time');\n", run)
+	fmt.Printf("        var %sdata = new google.visualization.DataTable();\n", d.Tag)
+	fmt.Printf("        %sdata.addColumn('number', 'Time');\n", d.Tag)
 	for i := range d.Points {
-		fmt.Printf("        sp%ddata.addColumn('number', 'Worker %d');\n", run, i)
+		fmt.Printf("        %sdata.addColumn('number', 'Worker %d');\n", d.Tag, i)
 	}
-	fmt.Printf("        sp%ddata.addRows([\n", run)
+	fmt.Printf("        %sdata.addRows([\n", d.Tag)
 
 	// Can't use json here because we need to be able to use 'null' for non-existent values
 	for i := range d.Points {
@@ -122,8 +114,8 @@ func (d *RunRaw) OutputJavascript(w io.Writer, run int) (err error) {
 	}
 	fmt.Print("          ]);\n")
 	
-	fmt.Printf("        var sp%dchart = new google.visualization.ScatterChart(document.getElementById('scatterplot%d'));\n", run, run);
-	fmt.Printf("        sp%dchart.draw(sp%ddata, sp%dopt);\n\n", run, run, run)
+	fmt.Printf("        var %schart = new google.visualization.ScatterChart(document.getElementById('scatterplot%s'));\n", d.Tag, d.Tag);
+	fmt.Printf("        %schart.draw(%sdata, %sopt);\n\n", d.Tag, d.Tag, d.Tag)
 	
 	return
 }
@@ -157,7 +149,7 @@ func (rpt *HTMLReport) Output(w io.Writer) (err error) {
 `);
 	// Print json chart code
 	for i := range rpt.Raw {
-		err = rpt.Raw[i].OutputJavascript(w, i)
+		err = rpt.Raw[i].OutputJavascript(w)
 		if err != nil {
 			return
 		}
@@ -171,7 +163,7 @@ func (rpt *HTMLReport) Output(w io.Writer) (err error) {
 `);
 	// Print html
 	for i := range rpt.Raw {
-		err = rpt.Raw[i].OutputHTML(w, i)
+		err = rpt.Raw[i].OutputHTML(w)
 		if err != nil {
 			return
 		}
@@ -185,25 +177,38 @@ func (rpt *HTMLReport) Output(w io.Writer) (err error) {
 }
 
 func (rpt *HTMLReport) AddRun(run *BenchmarkRun) (err error) {
-	var d RunRaw
+	var tPut RunRaw
+	var Util RunRaw
 
-	d.Label = run.Label
+	tPut.Title = fmt.Sprintf("Run %s Individual Throughput", run.Label)
+	tPut.hTitle = "Time (s)"
+	tPut.vTitle = "Throughput (kOps)"
+	Util.Title = fmt.Sprintf("Run %s Individual Utilization", run.Label)
+	Util.hTitle = "Time (s)"
+	Util.vTitle = "Utilization"
 	for set := range run.Results.Summary {
-		var idPoints []Point
+		var idTput []Point
+		var idUtil []Point
 		for id := range run.Results.Summary[set].Workers {
 			var le WorkerReport
 			for _, e := range run.Results.Summary[set].Workers[id].Raw {
-				if e.Now > le.Now {
+				if e.Kops > 0 {
 					time := float64(e.Now) / SEC
 					tput := Throughput(e.Now, e.Kops, le.Now, le.Kops)
-					idPoints = append(idPoints, Point{x:time, y:tput})
+					util := Utilization(e.Now, e.Cputime, le.Now, le.Cputime)
+					idTput = append(idTput, Point{x:time, y:tput})
+					idUtil = append(idUtil, Point{x:time, y:util})
 				}
 				le = e
 			}
 		}
-		d.Points = append(d.Points, idPoints)
+		tPut.Points = append(tPut.Points, idTput)
+		Util.Points = append(Util.Points, idUtil)
 	}
-	rpt.Raw = append(rpt.Raw, d)
+	tPut.Tag = fmt.Sprintf("raw%d", len(rpt.Raw))
+	rpt.Raw = append(rpt.Raw, tPut)
+	Util.Tag = fmt.Sprintf("raw%d", len(rpt.Raw))
+	rpt.Raw = append(rpt.Raw, Util)
 	return
 }
 
