@@ -1,6 +1,7 @@
 *.diff
 dist
 controller/schedbench
+controller/schedbench-report
 worker/worker-proc
 worker/worker-xen
 worker/worker-xen.img

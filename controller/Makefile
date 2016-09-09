@@ -1,4 +1,4 @@
-BIN = schedbench
+BIN = schedbench schedbench-report
 BINALL = $(BIN)
 
 .PHONY: all
@@ -15,6 +15,10 @@ CGO_LDFLAGS = -L$(XENLIB_PATH) -Wl,-rpath-link=$(XENLIB_PATH) $(CGO_LIBS)
 
 schedbench: main.go processworker.go xenworker.go benchmark.go run.go libxl.go htmlreport.go
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" CGO_CFLAGS="$(CGO_CFLAGS)" go build -o $@ $^
+
+# FIXME: Do with dlopen instead
+schedbench-report: main.go processworker.go xenworker_dummy.go benchmark.go run.go htmlreport.go
+	go build -o $@ $^
 
 .PHONY: clean
 clean:
