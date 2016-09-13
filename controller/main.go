@@ -30,6 +30,7 @@ func main() {
 
 	Args = Args[1:]
 	filename := "test.bench"
+	verbosity := 0
 
 	for len(Args) > 0 {
 		switch(Args[0]) {
@@ -39,6 +40,13 @@ func main() {
 				os.Exit(1)
 			}
 			filename = Args[1]
+			Args = Args[2:]
+		case "-v":
+			if len(Args) < 2 {
+				fmt.Println("Need arg for -v")
+				os.Exit(1)
+			}
+			verbosity, _ = strconv.Atoi(Args[1])
 			Args = Args[2:]
 		case "plan":
 			workerA := []string{"burnwait", "70", "200000"}
@@ -105,12 +113,7 @@ func main() {
 			Args = Args[1:]
 			
 		case "report":
-			verbosity := 0
 			Args = Args[1:]
-			if len(Args) > 0 {
-				verbosity, _ = strconv.Atoi(os.Args[0])
-				Args = Args[1:]
-			}
 			plan, err := LoadBenchmark(filename)
 			if err != nil {
 				fmt.Println("Loading benchmark ", filename, " ", err)

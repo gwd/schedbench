@@ -65,14 +65,20 @@ runes which reference it (leaving the library names intact).
 
 # Quick command reference
 
-To use schedsim, run the following four commands on your Xen host in
+To use schedbench, run the following four commands on your Xen host in
 order:
 
-- `schedbench plan`: Initialize "plan" for the benchmark in test.bench
+- `schedbench [-f filename ] plan`: Initialize "plan" for the benchmark in benchmark file (default: test.bench)
 
-- `schedbench run`: Run the runs in test.bench which haven't been completed yet
+- `schedbench [-f filename ] run`: Run the runs in benchmark file which haven't been completed yet
 
-- `schedbench report`: Collate the data and give a report
+- `schedbench [-f filename ] [-v N ] report`: Collate the data and give a text report to stdout with verbosity N
+
+- `schedbench [-f filename ] htmlreport`: Collate the data into a self-contained html document to stdout
+
+There is currently also a `schedbench-report` binary which doesn't
+link against libxl; this is so that you can run reports (or even
+generate plans) on a machine that doesn't have libxl installed.
 
 # Future work
 
