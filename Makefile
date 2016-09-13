@@ -5,7 +5,7 @@ export RUMPCC
 DISTDIR ?= $(PWD)/dist
 export DISTDIR
 
-DIRS = worker controller
+DIRS = worker controller scripts
 
 BUILDDIRS = $(DIRS:%=build-%)
 DISTDIRS = $(DIRS:%=dist-%)
