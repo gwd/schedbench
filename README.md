@@ -65,20 +65,67 @@ runes which reference it (leaving the library names intact).
 
 # Quick command reference
 
-To use schedbench, run the following four commands on your Xen host in
-order:
+To use `schedbench`, first copy and modify the included
+`sample.bench`, and modify as appropriate.  Then run the following
+four commands on your Xen host in order:
 
-- `schedbench [-f filename ] plan`: Initialize "plan" for the benchmark in benchmark file (default: test.bench)
+- `schedbench [-f filename ] plan`: Initialize "plan" for the
+  benchmark in benchmark file (default: `test.bench`)
 
-- `schedbench [-f filename ] run`: Run the runs in benchmark file which haven't been completed yet
+- `schedbench [-f filename ] run`: Run the runs in benchmark file
+  which haven't been completed yet
 
-- `schedbench [-f filename ] [-v N ] report`: Collate the data and give a text report to stdout with verbosity N
+- `schedbench [-f filename ] [-v N ] report`: Collate the data and
+  give a text report to stdout with verbosity `N`
 
-- `schedbench [-f filename ] htmlreport`: Collate the data into a self-contained html document to stdout
+- `schedbench [-f filename ] htmlreport`: Collate the data into a
+  self-contained html document to `stdout`
 
 There is currently also a `schedbench-report` binary which doesn't
 link against libxl; this is so that you can run reports (or even
-generate plans) on a machine that doesn't have libxl installed.
+generate plans) on a machine that doesn't have `libxl` installed.
+
+# Modifying `sample.bench`
+
+This is sample.bench:
+
+    {
+        "Input": {
+            "WorkerPresets": {
+                "A": { "Args": [ "burnwait", "70", "200000" ] },
+                "B": { "Args": [ "burnwait", "10", "300000",
+                        "burnwait", "20", "300000",
+                        "burnwait", "10", "300000",
+                        "burnwait", "10", "300000",
+                        "burnwait", "10", "300000",
+                        "burnwait", "10", "300000",
+                        "burnwait", "30", "300000" ] }
+            },
+            "SimpleMatrix": {
+                "Schedulers": [
+                    "credit",
+                    "credit2"
+                ],
+                "Workers": [ "A", "B" ],
+                "Count": [ 1, 2, 4, 8, 16 ]
+            }
+        },
+        "WorkerType": 1,
+        "Pool": "schedbench"
+    }
+
+The `WorkerPresets` section defines two workers, `A` and `B`.  See
+below for a description of the workers.
+
+The `SimpleMatrix` section tells `schedbench` to make a plan that
+includes `baseline` runs for both `A` and `B`, and then runs that
+include `Count` numbers of both `A` and `B`.  In the default case, it
+will run one `A` and one `B`, then two `A` workers and two `B`
+workers, then four `A` workers and four `B` workers, and so on.
+
+`Pool` is the cpupool in which to run the workers.  This allows you to
+change the scheduler you're testing without having to reboot.  To run
+in the default cpupool, simply remove this line.
 
 # Future work
 

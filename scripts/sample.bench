@@ -1,0 +1,24 @@
+{
+    "Input": {
+        "WorkerPresets": {
+            "A": { "Args": [ "burnwait", "70", "200000" ] },
+            "B": { "Args": [ "burnwait", "10", "300000",
+                    "burnwait", "20", "300000",
+                    "burnwait", "10", "300000",
+                    "burnwait", "10", "300000",
+                    "burnwait", "10", "300000",
+                    "burnwait", "10", "300000",
+                    "burnwait", "30", "300000" ] }
+        },
+        "SimpleMatrix": {
+            "Schedulers": [
+                "credit",
+                "credit2"
+            ],
+            "Workers": [ "A", "B" ],
+            "Count": [ 1, 2, 4, 8, 16 ]
+        }
+    },
+    "WorkerType": 1,
+    "Pool": "schedbench"
+}

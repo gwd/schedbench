@@ -148,12 +148,13 @@ type BenchmarkRun struct {
 }
 
 type BenchmarkPlan struct {
-	filename string
-	WorkerType int
+	Input *PlanInput     `json:",omitempty"`
+	filename string      `json:",omitempty"`
+	WorkerType int       `json:",omitempty"`
 	// Global options for workers that will be over-ridden by Run
 	// and WorkerSet config options
-	WorkerConfig
-	Runs []BenchmarkRun
+	WorkerConfig         `json:",omitempty"`
+	Runs []BenchmarkRun  `json:",omitempty"`
 }
 
 func (run *BenchmarkRun) checkSummary() (done bool, err error) {

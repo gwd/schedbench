@@ -49,49 +49,15 @@ func main() {
 			verbosity, _ = strconv.Atoi(Args[1])
 			Args = Args[2:]
 		case "plan":
-			workerA := []string{"burnwait", "70", "200000"}
-			//workerB := []string{"burnwait", "10", "20000000"}
-			workerB := []string{"burnwait", "10", "300000",
-				"burnwait", "20", "300000",
-				"burnwait", "10", "300000",
-				"burnwait", "10", "300000",
-				"burnwait", "10", "300000",
-				"burnwait", "10", "300000",
-				"burnwait", "30", "300000",
+			plan, err := LoadBenchmark(filename)
+			if err != nil {
+				fmt.Println("Loading benchmark ", filename, " ", err)
+				os.Exit(1)
 			}
 			
-			
-			plan :=  BenchmarkPlan{
-				WorkerType:WorkerXen,
-				WorkerConfig:WorkerConfig{Pool:"schedbench"},
-				filename:filename,
-				Runs:[]BenchmarkRun{
-					{Label:"baseline-a",
-						WorkerSets:[]WorkerSet{
-							{Params:WorkerParams{workerA},
-								Count:1}},
-						RuntimeSeconds:10,},
-					{Label:"baseline-b",
-						WorkerSets:[]WorkerSet{
-							{Params:WorkerParams{workerB},
-								Count:1}},
-						RuntimeSeconds:10,},
-				}}
-			
-			for i := 1; i <= 16 ; i *= 2 {
-				label := fmt.Sprintf("%da+%db", i, i)
-				run := BenchmarkRun{
-					Label:label,
-					WorkerSets:[]WorkerSet{
-						{Params:WorkerParams{workerA},
-							Count:i},
-						{Params:WorkerParams{workerB},
-							Count:i}},
-					RuntimeSeconds:10}
-				plan.Runs = append(plan.Runs, run)
-			}
-			
-			err := plan.Save()
+			plan.ExpandInput()
+
+			err = plan.Save()
 			if err != nil {
 				fmt.Println("Saving plan ", filename, " ", err)
 				os.Exit(1)

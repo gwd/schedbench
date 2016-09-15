@@ -1,4 +1,4 @@
-BIN = schedbench.sh schedbench-prep.sh cpupool.cfg
+BIN = schedbench.sh schedbench-prep.sh cpupool.cfg sample.bench
 
 .PHONY: all
 all: $(BIN)
