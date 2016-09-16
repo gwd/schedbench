@@ -3,7 +3,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of the
+ * published by the Free Software Foundation; version 2 of the
  * License only.
  *
  * This program is distributed in the hope that it will be useful, but
@@ -156,6 +156,38 @@ func getCpuHz() (err error) {
 	return
 }
 
+func (run *BenchmarkRun) Ready() (ready bool, why string) {
+	// FIXME: Check WorkerType
+	// Skip this run if it's not the scheduler we want
+	if run.RunConfig.Scheduler != "" {
+		var pool CpupoolInfo
+		if run.WorkerConfig.Pool != "" {
+			var found bool
+			pool, found = Ctx.CpupoolFindByName(run.WorkerConfig.Pool)
+			if !found {
+				why = "cpupool error"
+				return
+			}
+		} else {
+			// xl defaults to cpupool 0
+			plist := Ctx.ListCpupool()
+			if len(plist) > 0 {
+				pool = plist[0]
+			} else {
+				why = "cpupool error"
+				return
+			}
+		}
+
+		if pool.Scheduler.String() != run.RunConfig.Scheduler {
+			why = "scheduler != "+run.RunConfig.Scheduler
+			return 
+		}
+	}
+	ready = true
+	return 
+}
+
 func (run *BenchmarkRun) Run() (err error) {
 	for wsi := range run.WorkerSets {
 		run.WorkerSets[wsi].Config.PropagateFrom(run.WorkerConfig)
@@ -238,19 +270,26 @@ func (plan *BenchmarkPlan) Run() (err error) {
 	
 	for i := range plan.Runs {
 		r := &plan.Runs[i];
-		if ! r.Completed {
+		if ! r.Completed { 
 			r.WorkerConfig.PropagateFrom(plan.WorkerConfig)
-			fmt.Printf("Running test [%d] %s\n", i, r.Label)
-			err = r.Run()
-			if err != nil {
-				return
+			ready, why := r.Ready()
+			if ready {
+				fmt.Printf("Running test [%d] %s\n", i, r.Label)
+				err = r.Run()
+				if err != nil {
+					return
+				}
+			} else {
+				fmt.Printf("Test [%d]: %s skipped (%s)\n", i, r.Label, why)
 			}
 		}
-		fmt.Printf("Test [%d] %s completed\n", i, r.Label)
-		err = plan.Save()
-		if err != nil {
-			fmt.Println("Error saving: ", err)
-			return
+		if r.Completed {
+			fmt.Printf("Test [%d] %s completed\n", i, r.Label)
+			err = plan.Save()
+			if err != nil {
+				fmt.Println("Error saving: ", err)
+				return
+			}
 		}
 	}
 	return

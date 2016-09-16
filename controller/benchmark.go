@@ -138,10 +138,15 @@ type BenchmarkRunData struct {
 	Summary []WorkerSetSummary  `json:",omitempty"`
 }
 
+type RunConfig struct {
+	Scheduler string
+}
+
 type BenchmarkRun struct {
 	Label string
 	WorkerSets []WorkerSet
 	WorkerConfig
+	RunConfig
 	RuntimeSeconds int
 	Completed bool
 	Results BenchmarkRunData 

@@ -127,6 +127,14 @@ workers, then four `A` workers and four `B` workers, and so on.
 change the scheduler you're testing without having to reboot.  To run
 in the default cpupool, simply remove this line.
 
+`schedbench plan` will make one complete set of "runs" for each
+scheduler listed in `Simplematrix.Schedulers`.  When `schedbench run`
+goes through the runs, it will check the scheduler of the target
+cpupool, and skip the run if they don't match.  That way you can set
+up your scheduler / cpupool with one scheduler, run `schedbench plan`,
+then change the scheduler and run it again to get the runs for all
+schedulers in the same file for easy comparison.
+
 # Future work
 
 This is definitely a work-in-progress.  My initial goal is just to get
