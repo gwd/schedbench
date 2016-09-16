@@ -17,7 +17,7 @@ schedbench: main.go processworker.go xenworker.go benchmark.go run.go libxl.go h
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" CGO_CFLAGS="$(CGO_CFLAGS)" go build -o $@ $^
 
 # FIXME: Do with dlopen instead
-schedbench-report: main.go processworker.go xenworker_dummy.go benchmark.go run.go htmlreport.go plan.go
+schedbench-report: main.go benchmark.go stubs.go htmlreport.go plan.go
 	go build -o $@ $^
 
 .PHONY: clean
