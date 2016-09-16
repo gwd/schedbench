@@ -104,6 +104,11 @@ func main() {
 				os.Exit(1)
 			}
 			Args = Args[1:]
+
+		case "xltest":
+			XlTest(Args)
+			Args = nil
+			
 		default:
 			fmt.Println("Unknown argument: ", Args[0])
 			os.Exit(1)

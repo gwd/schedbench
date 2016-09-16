@@ -26,6 +26,10 @@ import (
 type XenWorker struct {
 }
 
+func XlTest(Args []string) {
+	return
+}
+
 func (w *XenWorker) SetId(i WorkerId) {
 }
 

@@ -2,6 +2,7 @@ package main
 
 /*
 #include <libxl.h>
+#include <stdlib.h>
 */
 import "C"
 
@@ -127,4 +128,155 @@ func (Ctx *Context) DomainUnpause(Id Domid) (err error) {
 		err = fmt.Errorf("libxl_domain_unpause failed: %d", ret)
 	}
 	return
+}
+
+
+// typedef struct {
+//     uint32_t size;          /* number of bytes in map */
+//     uint8_t *map;
+// } libxl_bitmap;
+// void libxl_bitmap_init(libxl_bitmap *map);
+// void libxl_bitmap_dispose(libxl_bitmap *map);
+
+// # Consistent with values defined in domctl.h
+// # Except unknown which we have made up
+// libxl_scheduler = Enumeration("scheduler", [
+//     (0, "unknown"),
+//     (4, "sedf"),
+//     (5, "credit"),
+//     (6, "credit2"),
+//     (7, "arinc653"),
+//     (8, "rtds"),
+//     ])
+type Scheduler int
+var (
+	SchedulerUnknown  Scheduler = 0
+	SchedulerSedf     Scheduler = 4
+	SchedulerCredit   Scheduler = 5
+	SchedulerCredit2  Scheduler = 6
+	SchedulerArinc653 Scheduler = 7
+	SchedulerRTDS     Scheduler = 8
+)
+
+// const char *libxl_scheduler_to_string(libxl_scheduler p);
+// int libxl_scheduler_from_string(const char *s, libxl_scheduler *e);
+func (s Scheduler) String() (string) {
+	cs := C.libxl_scheduler_to_string(C.libxl_scheduler(s))
+	// No need to free const return value
+
+	return C.GoString(cs)
+}
+
+func SchedulerFromString(name string) (s Scheduler, err error) {
+	cname := C.CString(name)
+	defer C.free(unsafe.Pointer(cname))
+
+	var cs C.libxl_scheduler
+
+	ret := C.libxl_scheduler_from_string(cname, &cs)
+	if ret != 0 {
+		err = fmt.Errorf("libxl_scheduler_from_string failed: %d", ret)
+		return
+	}
+
+	s = Scheduler(cs)
+
+	return
+}
+
+// libxl_cpupoolinfo = Struct("cpupoolinfo", [
+//     ("poolid",      uint32),
+//     ("pool_name",   string),
+//     ("sched",       libxl_scheduler),
+//     ("n_dom",       uint32),
+//     ("cpumap",      libxl_bitmap)
+//     ], dir=DIR_OUT)
+
+type CpupoolInfo struct {
+	PoolId uint32
+	PoolName string
+	Scheduler Scheduler
+	DomainCount int
+	// Punt on cpumap for now
+}
+
+// libxl_cpupoolinfo * libxl_list_cpupool(libxl_ctx*, int *nb_pool_out);
+// void libxl_cpupoolinfo_list_free(libxl_cpupoolinfo *list, int nb_pool);
+func (Ctx *Context) ListCpupool() (list []CpupoolInfo) {
+	var nbPool C.int
+
+	c_cpupool_list := C.libxl_list_cpupool(Ctx.ctx, &nbPool)
+
+	defer C.libxl_cpupoolinfo_list_free(c_cpupool_list, nbPool)
+
+	if int(nbPool) == 0 {
+		return
+	}
+
+	// Magic
+	cpupoolListSlice := (*[1 << 30]C.libxl_cpupoolinfo)(unsafe.Pointer(c_cpupool_list))[:nbPool:nbPool]
+
+	for i := range cpupoolListSlice {
+		var info CpupoolInfo
+		
+		info.PoolId = uint32(cpupoolListSlice[i].poolid)
+		info.PoolName = C.GoString(cpupoolListSlice[i].pool_name)
+		info.Scheduler = Scheduler(cpupoolListSlice[i].sched)
+		info.DomainCount = int(cpupoolListSlice[i].n_dom)
+
+		list = append(list, info)
+	}
+
+	return
+}
+
+func (Ctx *Context) CpupoolFindByName(name string) (info CpupoolInfo, found bool) {
+	plist := Ctx.ListCpupool()
+
+	for i := range plist {
+		if plist[i].PoolName == name {
+			found = true
+			info = plist[i]
+			return
+		}
+	}
+	return
+}
+
+func XlTest(Args []string) {
+	var Ctx Context
+
+	err := Ctx.Open()
+	if err != nil {
+		fmt.Printf("Opening context: %v\n", err)
+		return
+	}
+
+	pool, found := Ctx.CpupoolFindByName("schedbench")
+
+	if found {
+		fmt.Printf("%v\n", pool)
+
+		a := int(pool.Scheduler)
+		b := pool.Scheduler.String()
+		c, err  := SchedulerFromString(b)
+
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+		}
+
+		fmt.Printf("a: %d b: %s c: %d\n", a, b, int(c)) 
+	} else {
+		fmt.Printf("schedbench not found")
+	}
+
+	pool, found = Ctx.CpupoolFindByName("schedbnch")
+
+	if found {
+		fmt.Printf("%v\n", pool)
+	} else {
+		fmt.Printf("schedbnch not found")
+	}
+
+	Ctx.Close()
 }
