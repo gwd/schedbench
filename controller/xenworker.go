@@ -27,13 +27,6 @@ import (
 	"io"
 )
 
-type xenGlobal struct {
-	Ctx Context
-	count int
-}
-
-var xg xenGlobal
-
 type XenWorker struct {
 	id WorkerId
 	Ctx Context
@@ -68,13 +61,9 @@ func (w *XenWorker) SetId(i WorkerId) {
 }
 
 func (w *XenWorker) Init(p WorkerParams, g WorkerConfig) (err error) {
-	if xg.count == 0 {
-		err = xg.Ctx.Open()
-		if err != nil {
-			return
-		}
+	if err != nil {
+		return
 	}
-	xg.count++
 	
 	mock := false
 	
@@ -220,11 +209,6 @@ func (w *XenWorker) Shutdown() {
 	e.Stdout = os.Stdout
 	e.Stderr = os.Stderr
 
-	xg.count--
-	if xg.count == 0 {
-		defer xg.Ctx.Close()
-	}
-
 	err := e.Run()
 	if err != nil {
 		fmt.Printf("Error destroying domain: %v\n", err)
@@ -249,7 +233,8 @@ func (w *XenWorker) DumpLog(f io.Writer) (err error) {
 // FIXME: Return an error
 func (w *XenWorker) Process(report chan WorkerReport, done chan WorkerId) {
 	// // xl unpause [vmname]
-	err := xg.Ctx.DomainUnpause(Domid(w.domid))
+	//err := xg.Ctx.DomainUnpause(Domid(w.domid))
+	err := Ctx.DomainUnpause(Domid(w.domid))
 	if err != nil {
 		fmt.Printf("Error unpausing domain: %v\n", err)
 		return
@@ -268,7 +253,7 @@ func (w *XenWorker) Process(report chan WorkerReport, done chan WorkerId) {
 			var r WorkerReport
 			json.Unmarshal([]byte(s), &r)
 			r.Id = w.id
-			di, err := xg.Ctx.DomainInfo(Domid(w.domid))
+			di, err := Ctx.DomainInfo(Domid(w.domid))
 			// Ignore errors for now
 			if err == nil {
 				r.Cputime = di.Cpu_time

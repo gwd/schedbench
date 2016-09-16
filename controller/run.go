@@ -228,6 +228,13 @@ func (plan *BenchmarkPlan) Run() (err error) {
 	if err != nil {
 		return
 	}
+
+	if plan.WorkerType == WorkerXen {
+		err = Ctx.Open()
+		if err != nil {
+			return
+		}
+	}
 	
 	for i := range plan.Runs {
 		r := &plan.Runs[i];

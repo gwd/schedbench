@@ -16,19 +16,17 @@ type Context struct {
 	ctx *C.libxl_ctx
 }
 
-func NewContext() (Ctx *Context, err error) {
-	Ctx = &Context{}
-	
-	err = Ctx.Open()
-
-	return
-}
+var Ctx Context
 
 func (Ctx *Context) IsOpen() bool {
 	return Ctx.ctx != nil
 }
 
 func (Ctx *Context) Open() (err error) {
+	if Ctx.ctx != nil {
+		return
+	}
+	
 	ret := C.libxl_ctx_alloc(unsafe.Pointer(&Ctx.ctx), C.LIBXL_VERSION, 0, nil)
 
 	if ret != 0 {
