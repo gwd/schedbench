@@ -7,11 +7,10 @@ all: $(BIN)
 
 
 CGO_CFLAGS = -I/build/hg/xen.git/dist/install/usr/local/include
-CGO_LIBS = -lyajl -lxenlight
 
 # FIXME
 XENLIB_PATH ?= /build/hg/xen.git/dist/install/usr/local/lib/
-CGO_LDFLAGS = -L$(XENLIB_PATH) -Wl,-rpath-link=$(XENLIB_PATH) $(CGO_LIBS)
+CGO_LDFLAGS = -L$(XENLIB_PATH) -Wl,-rpath-link=$(XENLIB_PATH)
 
 schedbench: main.go processworker.go xenworker.go benchmark.go run.go libxl.go htmlreport.go plan.go
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" CGO_CFLAGS="$(CGO_CFLAGS)" go build -o $@ $^
