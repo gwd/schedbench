@@ -30,6 +30,7 @@ func main() {
 
 	Args = Args[1:]
 	filename := "test.bench"
+	template := ""
 	verbosity := 0
 
 	for len(Args) > 0 {
@@ -41,6 +42,13 @@ func main() {
 			}
 			filename = Args[1]
 			Args = Args[2:]
+		case "-t":
+			if len(Args) < 2 {
+				fmt.Println("Need arg for -t")
+				os.Exit(1)
+			}
+			template = Args[1]
+			Args = Args[2:]
 		case "-v":
 			if len(Args) < 2 {
 				fmt.Println("Need arg for -v")
@@ -49,20 +57,40 @@ func main() {
 			verbosity, _ = strconv.Atoi(Args[1])
 			Args = Args[2:]
 		case "plan":
-			plan, err := LoadBenchmark(filename)
+			// Load either the template benchmark or the filename
+			loadfile := filename
+			if template != "" {
+				loadfile = template
+			}
+			plan, err := LoadBenchmark(loadfile)
 			if err != nil {
-				fmt.Println("Loading benchmark ", filename, " ", err)
+				fmt.Printf("Loading benchmark %s: %v\n",
+					loadfile, err)
 				os.Exit(1)
 			}
+
+			if template != "" {
+				plan.filename = filename
+				err = plan.ClearRuns()
+				if err != nil {
+					fmt.Printf("Clearing runs: %v\n",
+						err)
+					os.Exit(1)
+				}
+			}
 			
-			plan.ExpandInput()
+			err = plan.ExpandInput()
+			if err != nil {
+				fmt.Printf("Expanding plan: %v\n", err)
+				os.Exit(1)
+			}
 
 			err = plan.Save()
 			if err != nil {
-				fmt.Println("Saving plan ", filename, " ", err)
+				fmt.Printf("Saving plan %s: %v\n", filename, err)
 				os.Exit(1)
 			}
-			fmt.Println("Created plan in ", filename)
+			fmt.Printf("Created plan in %s\n", filename)
 			Args = Args[1:]
 		case "run":
 			plan, err := LoadBenchmark(filename)

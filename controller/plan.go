@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2016 George W. Dunlap, Citrix Systems UK Ltd
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; version 2 of the
+ * License only.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ */
 package main
 
 import (
@@ -19,15 +37,25 @@ var WorkerPresets = map[string]WorkerParams{
 	"P001":WorkerParams{[]string{"burnwait", "70", "200000"}},
 }
 
+func (plan *BenchmarkPlan) ClearRuns() (err error) {
+	plan.Runs = nil
+
+	return
+}
 
 func (plan *BenchmarkPlan) ExpandInput() (err error) {
 	if plan.Runs != nil {
-		fmt.Printf("plan.Expand: Runs non-empty, not doing anything\n");
+		err = fmt.Errorf("Runs non-empty, not doing anything\n");
+		return
+	}
+
+	if plan.Input == nil {
+		err = fmt.Errorf("Input nil, nothing to do")
 		return
 	}
 	
 	if plan.Input.SimpleMatrix == nil {
-		fmt.Printf("plan.Expand: SimpleMatrix nil, nothing to do\n");
+		err = fmt.Errorf("Input.SimpleMatrix nil, nothing to do\n");
 		return
 	}
 

@@ -69,8 +69,10 @@ To use `schedbench`, first copy and modify the included
 `sample.bench`, and modify as appropriate.  Then run the following
 four commands on your Xen host in order:
 
-- `schedbench [-f filename ] plan`: Initialize "plan" for the
-  benchmark in benchmark file (default: `test.bench`)
+- `schedbench [-t template] [-f filename ] plan`: Initialize "plan"
+  for the benchmark in benchmark file (default: `test.bench`).  If
+  `template` is given, then a new plan will be made in `filename`
+  which is identical to the one found in `template`.
 
 - `schedbench [-f filename ] run`: Run the runs in benchmark file
   which haven't been completed yet
