@@ -19,11 +19,19 @@
 package main
 
 /*
-#cgo LDFLAGS: -lyajl -lxenlight
+#cgo LDFLAGS: -lxenlight -lyajl_s -lxengnttab -lxenstore -lxenguest -lxentoollog -lxenevtchn -lxenctrl -lblktapctl -lxenforeignmemory -lxencall -lz -luuid -lutil
 #include <libxl.h>
 #include <stdlib.h>
 */
 import "C"
+
+/*
+ * Other flags that may be needed at some point: 
+ *  -lnl-route-3 -lnl-3
+ *
+ * To get back to simple dynamic linking:
+#cgo LDFLAGS: -lxenlight -lyajl
+*/
 
 import (
 	"unsafe"

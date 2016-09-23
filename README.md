@@ -81,9 +81,9 @@ four commands on your Xen host in order:
 - `schedbench [-f filename ] htmlreport`: Collate the data into a
   self-contained html document to `stdout`
 
-There is currently also a `schedbench-report` binary which doesn't
-link against libxl; this is so that you can run reports (or even
-generate plans) on a machine that doesn't have `libxl` installed.
+`schedbench` is compiled statically, so the report / plan side should
+run even on a system that doesn't have libxl installed (such as,
+perhaps, your dev box).
 
 # Modifying `sample.bench`
 
