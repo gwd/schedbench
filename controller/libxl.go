@@ -20,8 +20,8 @@ package main
 
 /*
 #cgo LDFLAGS: -lxenlight -lyajl_s -lxengnttab -lxenstore -lxenguest -lxentoollog -lxenevtchn -lxenctrl -lblktapctl -lxenforeignmemory -lxencall -lz -luuid -lutil
-#include <libxl.h>
 #include <stdlib.h>
+#include <libxl.h>
 */
 import "C"
 
@@ -72,6 +72,7 @@ func (Ctx *Context) Close() (err error) {
 	return
 }
 
+// Builtins
 type Domid uint32
 
 type MemKB uint64
@@ -160,8 +161,66 @@ func (Ctx *Context) DomainUnpause(Id Domid) (err error) {
 //     uint32_t size;          /* number of bytes in map */
 //     uint8_t *map;
 // } libxl_bitmap;
-// void libxl_bitmap_init(libxl_bitmap *map);
-// void libxl_bitmap_dispose(libxl_bitmap *map);
+
+// Implement the Go bitmap type such that the underlying data can
+// easily be copied in and out.  NB that we still have to do copies
+// both directions, because cgo runtime restrictions forbid passing to
+// a C function a pointer to a Go-allocated structure which contains a
+// pointer.
+type Bitmap struct {
+	bitmap []C.uint8_t
+}
+
+func (bm *Bitmap) Alloc(max int) {
+	bm.bitmap = make([]C.uint8_t, (max + 7) / 8)
+}
+
+// Return a Go bitmap which is a copy of the referred C bitmap.
+func bitmapCToGo(cbm *C.libxl_bitmap) (bm Bitmap) {
+	// Alloc a Go slice for the bytes
+	size := int(cbm.size)
+	bm.Alloc(size*8)
+
+	// Make a slice pointing to the C array
+	mapslice := (*[1 << 30]C.uint8_t)(unsafe.Pointer(cbm._map))[:size:size]
+
+	// And copy the C array into the Go array
+	copy(bm.bitmap, mapslice)
+
+	return
+}
+
+func (bm *Bitmap) Test(bit int) (bool) {
+	ubit := uint(bit)
+	if (bit > bm.Max()) {
+		return false
+	}
+	
+	return (bm.bitmap[bit / 8] & (1 << (ubit & 7))) != 0
+}
+
+// FIXME: Do we really just want to silently fail here?
+func (bm *Bitmap) Set(bit int) {
+	ubit := uint(bit)
+	if (bit > bm.Max()) {
+		return
+	}
+	
+	bm.bitmap[bit / 8] |= 1 << (ubit & 7)
+}
+
+func (bm *Bitmap) Clear(bit int) {
+	ubit := uint(bit)
+	if (bit > bm.Max()) {
+		return
+	}
+	
+	bm.bitmap[bit / 8] &= ^(1 << (ubit & 7))
+}
+
+func (bm *Bitmap) Max() (int) {
+	return len(bm.bitmap) * 8
+}
 
 // # Consistent with values defined in domctl.h
 // # Except unknown which we have made up
@@ -222,7 +281,7 @@ type CpupoolInfo struct {
 	PoolName string
 	Scheduler Scheduler
 	DomainCount int
-	// Punt on cpumap for now
+	CpuMap Bitmap
 }
 
 // libxl_cpupoolinfo * libxl_list_cpupool(libxl_ctx*, int *nb_pool_out);
@@ -248,6 +307,7 @@ func (Ctx *Context) ListCpupool() (list []CpupoolInfo) {
 		info.PoolName = C.GoString(cpupoolListSlice[i].pool_name)
 		info.Scheduler = Scheduler(cpupoolListSlice[i].sched)
 		info.DomainCount = int(cpupoolListSlice[i].n_dom)
+		info.CpuMap = bitmapCToGo(&cpupoolListSlice[i].cpumap)
 
 		list = append(list, info)
 	}
@@ -268,6 +328,24 @@ func (Ctx *Context) CpupoolFindByName(name string) (info CpupoolInfo, found bool
 	return
 }
 
+// int libxl_cpupool_create(libxl_ctx *ctx, const char *name,
+//                          libxl_scheduler sched,
+//                          libxl_bitmap cpumap, libxl_uuid *uuid,
+//                          uint32_t *poolid);
+// int libxl_cpupool_destroy(libxl_ctx *ctx, uint32_t poolid);
+// int libxl_cpupool_rename(libxl_ctx *ctx, const char *name, uint32_t poolid);
+// int libxl_cpupool_cpuadd(libxl_ctx *ctx, uint32_t poolid, int cpu);
+// int libxl_cpupool_cpuadd_node(libxl_ctx *ctx, uint32_t poolid, int node, int *cpus);
+// int libxl_cpupool_cpuadd_cpumap(libxl_ctx *ctx, uint32_t poolid,
+//                                 const libxl_bitmap *cpumap);
+// int libxl_cpupool_cpuremove(libxl_ctx *ctx, uint32_t poolid, int cpu);
+// int libxl_cpupool_cpuremove_node(libxl_ctx *ctx, uint32_t poolid, int node, int *cpus);
+// int libxl_cpupool_cpuremove_cpumap(libxl_ctx *ctx, uint32_t poolid,
+//                                    const libxl_bitmap *cpumap);
+// int libxl_cpupool_movedomain(libxl_ctx *ctx, uint32_t poolid, uint32_t domid);
+// int libxl_cpupool_info(libxl_ctx *ctx, libxl_cpupoolinfo *info, uint32_t poolid);
+
+	
 func XlTest(Args []string) {
 	var Ctx Context
 
@@ -290,7 +368,21 @@ func XlTest(Args []string) {
 			fmt.Printf("Error: %v\n", err)
 		}
 
-		fmt.Printf("a: %d b: %s c: %d\n", a, b, int(c)) 
+		fmt.Printf("a: %d b: %s c: %d\n", a, b, int(c))
+
+		pool.CpuMap.Set(1)
+		pool.CpuMap.Set(2)
+		pool.CpuMap.Clear(2)
+		
+		fmt.Printf("cpumap: ")
+		for i := 0; i < pool.CpuMap.Max() ; i++ {
+			if pool.CpuMap.Test(i) {
+				fmt.Printf("x")
+			} else {
+				fmt.Printf("-")
+			}
+		}
+		fmt.Printf("\n")
 	} else {
 		fmt.Printf("schedbench not found")
 	}
@@ -300,7 +392,7 @@ func XlTest(Args []string) {
 	if found {
 		fmt.Printf("%v\n", pool)
 	} else {
-		fmt.Printf("schedbnch not found")
+		fmt.Printf("schedbnch not found\n")
 	}
 
 	Ctx.Close()
