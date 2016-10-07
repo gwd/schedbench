@@ -164,9 +164,16 @@ func (Ctx *Context) Close() (err error) {
 	return
 }
 
-func (Ctx *Context) DomainInfo(Id Domid) (di *Dominfo, err error) {
+func (Ctx *Context) CheckOpen() (err error) {
 	if Ctx.ctx == nil {
 		err = fmt.Errorf("Context not opened")
+	}
+	return
+}
+
+func (Ctx *Context) DomainInfo(Id Domid) (di *Dominfo, err error) {
+	err = Ctx.CheckOpen()
+	if err != nil {
 		return
 	}
 
@@ -209,8 +216,8 @@ func (Ctx *Context) DomainInfo(Id Domid) (di *Dominfo, err error) {
 }
 
 func (Ctx *Context) DomainUnpause(Id Domid) (err error) {
-	if Ctx.ctx == nil {
-		err = fmt.Errorf("Context not opened")
+	err = Ctx.CheckOpen()
+	if err != nil {
 		return
 	}
 
@@ -359,6 +366,11 @@ func SchedulerFromString(name string) (s Scheduler, err error) {
 // libxl_cpupoolinfo * libxl_list_cpupool(libxl_ctx*, int *nb_pool_out);
 // void libxl_cpupoolinfo_list_free(libxl_cpupoolinfo *list, int nb_pool);
 func (Ctx *Context) ListCpupool() (list []CpupoolInfo) {
+	err := Ctx.CheckOpen()
+	if err != nil {
+		return
+	}
+
 	var nbPool C.int
 
 	c_cpupool_list := C.libxl_list_cpupool(Ctx.ctx, &nbPool)
@@ -394,6 +406,11 @@ func (Ctx *Context) ListCpupool() (list []CpupoolInfo) {
 // FIXME: uuid
 // FIXME: Setting poolid
 func (Ctx *Context) CpupoolCreate(Name string, Scheduler Scheduler, Cpumap Bitmap) (err error, Poolid uint32) {
+	err = Ctx.CheckOpen()
+	if err != nil {
+		return
+	}
+
 	poolid := C.uint32_t(0)
 	name := C.CString(Name)
 	defer C.free(unsafe.Pointer(name))
@@ -420,6 +437,11 @@ func (Ctx *Context) CpupoolCreate(Name string, Scheduler Scheduler, Cpumap Bitma
 
 // int libxl_cpupool_destroy(libxl_ctx *ctx, uint32_t poolid);
 func (Ctx *Context) CpupoolDestroy(Poolid uint32) (err error) {
+	err = Ctx.CheckOpen()
+	if err != nil {
+		return
+	}
+
 	ret := C.libxl_cpupool_destroy(Ctx.ctx, C.uint32_t(Poolid))
 	// FIXME: Proper error
 	if ret != 0 {
@@ -432,6 +454,11 @@ func (Ctx *Context) CpupoolDestroy(Poolid uint32) (err error) {
 
 // int libxl_cpupool_cpuadd(libxl_ctx *ctx, uint32_t poolid, int cpu);
 func (Ctx *Context) CpupoolCpuadd(Poolid uint32, Cpu int) (err error) {
+	err = Ctx.CheckOpen()
+	if err != nil {
+		return
+	}
+
 	ret := C.libxl_cpupool_cpuadd(Ctx.ctx, C.uint32_t(Poolid), C.int(Cpu))
 	// FIXME: Proper error
 	if ret != 0 {
@@ -445,6 +472,11 @@ func (Ctx *Context) CpupoolCpuadd(Poolid uint32, Cpu int) (err error) {
 // int libxl_cpupool_cpuadd_cpumap(libxl_ctx *ctx, uint32_t poolid,
 //                                 const libxl_bitmap *cpumap);
 func (Ctx *Context) CpupoolCpuaddCpumap(Poolid uint32, Cpumap Bitmap) (err error) {
+	err = Ctx.CheckOpen()
+	if err != nil {
+		return
+	}
+
 	cbm := bitmapGotoC(Cpumap)
 	defer C.libxl_bitmap_dispose(&cbm)
 	
@@ -460,6 +492,11 @@ func (Ctx *Context) CpupoolCpuaddCpumap(Poolid uint32, Cpumap Bitmap) (err error
 
 // int libxl_cpupool_cpuremove(libxl_ctx *ctx, uint32_t poolid, int cpu);
 func (Ctx *Context) CpupoolCpuremove(Poolid uint32, Cpu int) (err error) {
+	err = Ctx.CheckOpen()
+	if err != nil {
+		return
+	}
+
 	ret := C.libxl_cpupool_cpuremove(Ctx.ctx, C.uint32_t(Poolid), C.int(Cpu))
 	// FIXME: Proper error
 	if ret != 0 {
@@ -473,6 +510,11 @@ func (Ctx *Context) CpupoolCpuremove(Poolid uint32, Cpu int) (err error) {
 // int libxl_cpupool_cpuremove_cpumap(libxl_ctx *ctx, uint32_t poolid,
 //                                    const libxl_bitmap *cpumap);
 func (Ctx *Context) CpupoolCpuremoveCpumap(Poolid uint32, Cpumap Bitmap) (err error) {
+	err = Ctx.CheckOpen()
+	if err != nil {
+		return
+	}
+
 	cbm := bitmapGotoC(Cpumap)
 	defer C.libxl_bitmap_dispose(&cbm)
 	
