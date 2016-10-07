@@ -226,6 +226,12 @@ func (bm *Bitmap) Set(bit int) {
 	bm.bitmap[ibit] |= 1 << (uint(bit) & 7)
 }
 
+func (bm *Bitmap) SetRange(start int, end int) {
+	for i := start; i <= end; i++ {
+		bm.Set(i)
+	}
+}
+
 func (bm *Bitmap) Clear(bit int) {
 	ubit := uint(bit)
 	if (bit > bm.Max()) {
@@ -235,8 +241,40 @@ func (bm *Bitmap) Clear(bit int) {
 	bm.bitmap[bit / 8] &= ^(1 << (ubit & 7))
 }
 
+func (bm *Bitmap) ClearRange(start int, end int) {
+	for i := start; i <= end; i++ {
+		bm.Clear(i)
+	}
+}
+
 func (bm *Bitmap) Max() (int) {
 	return len(bm.bitmap) * 8
+}
+
+func (bm *Bitmap) IsEmpty() (bool) {
+	for i:=0; i<len(bm.bitmap); i++ {
+		if bm.bitmap[i] != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (a Bitmap) And(b Bitmap) (c Bitmap) {
+	var max, min int
+	if len(a.bitmap) > len(b.bitmap) {
+		max = len(a.bitmap)
+		min = len(b.bitmap)
+	} else {
+		max = len(b.bitmap)
+		min = len(a.bitmap)
+	}
+	c.bitmap = make([]C.uint8_t, max)
+
+	for i := 0; i < min; i++ {
+		c.bitmap[i] = a.bitmap[i] & b.bitmap[i]
+	}
+	return
 }
 
 // # Consistent with values defined in domctl.h
@@ -294,11 +332,11 @@ func SchedulerFromString(name string) (s Scheduler, err error) {
 //     ], dir=DIR_OUT)
 
 type CpupoolInfo struct {
-	PoolId uint32
+	Poolid uint32
 	PoolName string
 	Scheduler Scheduler
 	DomainCount int
-	CpuMap Bitmap
+	Cpumap Bitmap
 }
 
 // libxl_cpupoolinfo * libxl_list_cpupool(libxl_ctx*, int *nb_pool_out);
@@ -320,11 +358,11 @@ func (Ctx *Context) ListCpupool() (list []CpupoolInfo) {
 	for i := range cpupoolListSlice {
 		var info CpupoolInfo
 		
-		info.PoolId = uint32(cpupoolListSlice[i].poolid)
+		info.Poolid = uint32(cpupoolListSlice[i].poolid)
 		info.PoolName = C.GoString(cpupoolListSlice[i].pool_name)
 		info.Scheduler = Scheduler(cpupoolListSlice[i].sched)
 		info.DomainCount = int(cpupoolListSlice[i].n_dom)
-		info.CpuMap = bitmapCToGo(&cpupoolListSlice[i].cpumap)
+		info.Cpumap = bitmapCToGo(&cpupoolListSlice[i].cpumap)
 
 		list = append(list, info)
 	}
@@ -365,15 +403,78 @@ func (Ctx *Context) CpupoolCreate(Name string, Scheduler Scheduler, Cpumap Bitma
 }
 
 // int libxl_cpupool_destroy(libxl_ctx *ctx, uint32_t poolid);
-// int libxl_cpupool_rename(libxl_ctx *ctx, const char *name, uint32_t poolid);
+func (Ctx *Context) CpupoolDestroy(Poolid uint32) (err error) {
+	ret := C.libxl_cpupool_destroy(Ctx.ctx, C.uint32_t(Poolid))
+	// FIXME: Proper error
+	if ret != 0 {
+		err = fmt.Errorf("libxl_cpupool_destroy failed: %d", ret)
+		return
+	}
+
+	return
+}
+
 // int libxl_cpupool_cpuadd(libxl_ctx *ctx, uint32_t poolid, int cpu);
-// int libxl_cpupool_cpuadd_node(libxl_ctx *ctx, uint32_t poolid, int node, int *cpus);
+func (Ctx *Context) CpupoolCpuadd(Poolid uint32, Cpu int) (err error) {
+	ret := C.libxl_cpupool_cpuadd(Ctx.ctx, C.uint32_t(Poolid), C.int(Cpu))
+	// FIXME: Proper error
+	if ret != 0 {
+		err = fmt.Errorf("libxl_cpupool_cpuadd failed: %d", ret)
+		return
+	}
+
+	return
+}
+
 // int libxl_cpupool_cpuadd_cpumap(libxl_ctx *ctx, uint32_t poolid,
 //                                 const libxl_bitmap *cpumap);
+func (Ctx *Context) CpupoolCpuaddCpumap(Poolid uint32, Cpumap Bitmap) (err error) {
+	var cbm C.libxl_bitmap
+	bitmapGotoC(Cpumap, &cbm)
+	defer C.libxl_bitmap_dispose(&cbm)
+	
+	ret := C.libxl_cpupool_cpuadd_cpumap(Ctx.ctx, C.uint32_t(Poolid), &cbm)
+	// FIXME: Proper error
+	if ret != 0 {
+		err = fmt.Errorf("libxl_cpupool_cpuadd_cpumap failed: %d", ret)
+		return
+	}
+
+	return
+}
+
 // int libxl_cpupool_cpuremove(libxl_ctx *ctx, uint32_t poolid, int cpu);
-// int libxl_cpupool_cpuremove_node(libxl_ctx *ctx, uint32_t poolid, int node, int *cpus);
+func (Ctx *Context) CpupoolCpuremove(Poolid uint32, Cpu int) (err error) {
+	ret := C.libxl_cpupool_cpuremove(Ctx.ctx, C.uint32_t(Poolid), C.int(Cpu))
+	// FIXME: Proper error
+	if ret != 0 {
+		err = fmt.Errorf("libxl_cpupool_cpuremove failed: %d", ret)
+		return
+	}
+
+	return
+}
+
 // int libxl_cpupool_cpuremove_cpumap(libxl_ctx *ctx, uint32_t poolid,
 //                                    const libxl_bitmap *cpumap);
+func (Ctx *Context) CpupoolCpuremoveCpumap(Poolid uint32, Cpumap Bitmap) (err error) {
+	var cbm C.libxl_bitmap
+	bitmapGotoC(Cpumap, &cbm)
+	defer C.libxl_bitmap_dispose(&cbm)
+	
+	ret := C.libxl_cpupool_cpuremove_cpumap(Ctx.ctx, C.uint32_t(Poolid), &cbm)
+	// FIXME: Proper error
+	if ret != 0 {
+		err = fmt.Errorf("libxl_cpupool_cpuremove_cpumap failed: %d", ret)
+		return
+	}
+
+	return
+}
+
+// int libxl_cpupool_rename(libxl_ctx *ctx, const char *name, uint32_t poolid);
+// int libxl_cpupool_cpuadd_node(libxl_ctx *ctx, uint32_t poolid, int node, int *cpus);
+// int libxl_cpupool_cpuremove_node(libxl_ctx *ctx, uint32_t poolid, int node, int *cpus);
 // int libxl_cpupool_movedomain(libxl_ctx *ctx, uint32_t poolid, uint32_t domid);
 // int libxl_cpupool_info(libxl_ctx *ctx, libxl_cpupoolinfo *info, uint32_t poolid);
 
@@ -393,6 +494,22 @@ func (Ctx *Context) CpupoolFindByName(name string) (info CpupoolInfo, found bool
 	return
 }
 
+func (Ctx *Context) CpupoolMakeFree(Cpumap Bitmap) (err error) {
+	plist := Ctx.ListCpupool()
+
+	for i := range plist {
+		var Intersection Bitmap
+		Intersection = Cpumap.And(plist[i].Cpumap)
+		if ! Intersection.IsEmpty() {
+			err = Ctx.CpupoolCpuremoveCpumap(plist[i].Poolid, Intersection)
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
 func XlTest(Args []string) {
 	var Ctx Context
 
@@ -405,45 +522,41 @@ func XlTest(Args []string) {
 	pool, found := Ctx.CpupoolFindByName("schedbench")
 
 	if found {
-		fmt.Printf("%v\n", pool)
+		fmt.Printf("Found schedbench, destroying\n")
 
-		a := int(pool.Scheduler)
-		b := pool.Scheduler.String()
-		c, err  := SchedulerFromString(b)
-
+		err = Ctx.CpupoolDestroy(pool.Poolid)
 		if err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Printf("Couldn't destroy pool: %v\n", err)
+			return
 		}
 
-		fmt.Printf("a: %d b: %s c: %d\n", a, b, int(c))
-
-		pool.CpuMap.Set(1)
-		pool.CpuMap.Set(2)
-		pool.CpuMap.Clear(2)
-		
-		fmt.Printf("cpumap: ")
-		for i := 0; i < pool.CpuMap.Max() ; i++ {
-			if pool.CpuMap.Test(i) {
-				fmt.Printf("x")
-			} else {
-				fmt.Printf("-")
-			}
+		fmt.Printf("Returning cpus to pool 0 for fun\n")
+		err = Ctx.CpupoolCpuaddCpumap(0, pool.Cpumap)
+		if err != nil {
+			fmt.Printf("Couldn't add cpus to domain 0: %v\n", err)
+			return
 		}
-		fmt.Printf("\n")
+	}
+
+	var Cpumap Bitmap
+
+	Cpumap.SetRange(12, 15)
+
+	fmt.Printf("Freeing cpus\n")
+	err = Ctx.CpupoolMakeFree(Cpumap)
+	if err != nil {
+		fmt.Printf("Couldn't free cpus: %v\n", err)
+		return
+	}
+
+
+	fmt.Printf("Creating new pool\n")
+
+	err, Poolid := Ctx.CpupoolCreate("schedbench", SchedulerCredit, Cpumap)
+	if err != nil {
+		fmt.Printf("Error creating cpupool: %v\n", err)
 	} else {
-		fmt.Printf("schedbench not found, creating\n")
-
-		var Cpumap Bitmap
-		var Poolid uint32
-
-		Cpumap.Set(15)
-
-		err, Poolid = Ctx.CpupoolCreate("schedbench", SchedulerCredit, Cpumap)
-		if err != nil {
-			fmt.Printf("Error creating cpupool: %v\n", err)
-		} else {
-			fmt.Printf("Pool id: %d\n", Poolid)
-		}
+		fmt.Printf("Pool id: %d\n", Poolid)
 	}
 
 	Ctx.Close()
