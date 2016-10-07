@@ -176,18 +176,36 @@ func (bm *Bitmap) Alloc(max int) {
 }
 
 // Return a Go bitmap which is a copy of the referred C bitmap.
-func bitmapCToGo(cbm *C.libxl_bitmap) (bm Bitmap) {
+func bitmapCToGo(cbm *C.libxl_bitmap) (gbm Bitmap) {
 	// Alloc a Go slice for the bytes
 	size := int(cbm.size)
-	bm.Alloc(size*8)
+	gbm.Alloc(size*8)
 
 	// Make a slice pointing to the C array
 	mapslice := (*[1 << 30]C.uint8_t)(unsafe.Pointer(cbm._map))[:size:size]
 
 	// And copy the C array into the Go array
-	copy(bm.bitmap, mapslice)
+	copy(gbm.bitmap, mapslice)
 
 	return
+}
+
+// Must be C.libxl_bitmap_dispose'd of afterwards
+func bitmapGotoC(gbm Bitmap, cbm *C.libxl_bitmap) {
+	C.libxl_bitmap_init(cbm)
+
+	size := len(gbm.bitmap)
+	cbm._map = (*C.uint8_t)(C.malloc(C.size_t(size)))
+	cbm.size = C.uint32_t(size)
+	if cbm._map == nil {
+		panic("C.calloc failed!")
+	}
+
+	// Make a slice pointing to the C array
+	mapslice := (*[1 << 30]C.uint8_t)(unsafe.Pointer(cbm._map))[:size:size]
+
+	// And copy the Go array into the C array
+	copy(mapslice, gbm.bitmap)
 }
 
 func (bm *Bitmap) Test(bit int) (bool) {
@@ -199,14 +217,13 @@ func (bm *Bitmap) Test(bit int) (bool) {
 	return (bm.bitmap[bit / 8] & (1 << (ubit & 7))) != 0
 }
 
-// FIXME: Do we really just want to silently fail here?
 func (bm *Bitmap) Set(bit int) {
-	ubit := uint(bit)
-	if (bit > bm.Max()) {
-		return
+	ibit := bit / 8;
+	if (ibit + 1 > len(bm.bitmap)) {
+		bm.bitmap = append(bm.bitmap, make([]C.uint8_t, ibit+1-len(bm.bitmap))...)
 	}
 	
-	bm.bitmap[bit / 8] |= 1 << (ubit & 7)
+	bm.bitmap[ibit] |= 1 << (uint(bit) & 7)
 }
 
 func (bm *Bitmap) Clear(bit int) {
@@ -234,12 +251,12 @@ func (bm *Bitmap) Max() (int) {
 //     ])
 type Scheduler int
 var (
-	SchedulerUnknown  Scheduler = 0
-	SchedulerSedf     Scheduler = 4
-	SchedulerCredit   Scheduler = 5
-	SchedulerCredit2  Scheduler = 6
-	SchedulerArinc653 Scheduler = 7
-	SchedulerRTDS     Scheduler = 8
+	SchedulerUnknown  Scheduler = C.LIBXL_SCHEDULER_UNKNOWN
+	SchedulerSedf     Scheduler = C.LIBXL_SCHEDULER_SEDF
+	SchedulerCredit   Scheduler = C.LIBXL_SCHEDULER_CREDIT
+	SchedulerCredit2  Scheduler = C.LIBXL_SCHEDULER_CREDIT2
+	SchedulerArinc653 Scheduler = C.LIBXL_SCHEDULER_ARINC653
+	SchedulerRTDS     Scheduler = C.LIBXL_SCHEDULER_RTDS
 )
 
 // const char *libxl_scheduler_to_string(libxl_scheduler p);
@@ -315,23 +332,38 @@ func (Ctx *Context) ListCpupool() (list []CpupoolInfo) {
 	return
 }
 
-func (Ctx *Context) CpupoolFindByName(name string) (info CpupoolInfo, found bool) {
-	plist := Ctx.ListCpupool()
-
-	for i := range plist {
-		if plist[i].PoolName == name {
-			found = true
-			info = plist[i]
-			return
-		}
-	}
-	return
-}
-
 // int libxl_cpupool_create(libxl_ctx *ctx, const char *name,
 //                          libxl_scheduler sched,
 //                          libxl_bitmap cpumap, libxl_uuid *uuid,
 //                          uint32_t *poolid);
+// FIXME: uuid
+// FIXME: Setting poolid
+func (Ctx *Context) CpupoolCreate(Name string, Scheduler Scheduler, Cpumap Bitmap) (err error, Poolid uint32) {
+	poolid := C.uint32_t(0)
+	name := C.CString(Name)
+	defer C.free(unsafe.Pointer(name))
+	
+	// For now, just do what xl does, and make a new uuid every time we create the pool
+	var uuid C.libxl_uuid
+	C.libxl_uuid_generate(&uuid)
+
+	var cbm C.libxl_bitmap
+	bitmapGotoC(Cpumap, &cbm)
+	defer C.libxl_bitmap_dispose(&cbm)
+	
+	ret := C.libxl_cpupool_create(Ctx.ctx, name, C.libxl_scheduler(Scheduler),
+		cbm, &uuid, &poolid)
+	// FIXME: Proper error
+	if ret != 0 {
+		err = fmt.Errorf("libxl_cpupool_create failed: %d", ret)
+		return
+	}
+
+	Poolid = uint32(poolid)
+	
+	return
+}
+
 // int libxl_cpupool_destroy(libxl_ctx *ctx, uint32_t poolid);
 // int libxl_cpupool_rename(libxl_ctx *ctx, const char *name, uint32_t poolid);
 // int libxl_cpupool_cpuadd(libxl_ctx *ctx, uint32_t poolid, int cpu);
@@ -345,7 +377,22 @@ func (Ctx *Context) CpupoolFindByName(name string) (info CpupoolInfo, found bool
 // int libxl_cpupool_movedomain(libxl_ctx *ctx, uint32_t poolid, uint32_t domid);
 // int libxl_cpupool_info(libxl_ctx *ctx, libxl_cpupoolinfo *info, uint32_t poolid);
 
-	
+//
+// Utility functions
+//
+func (Ctx *Context) CpupoolFindByName(name string) (info CpupoolInfo, found bool) {
+	plist := Ctx.ListCpupool()
+
+	for i := range plist {
+		if plist[i].PoolName == name {
+			found = true
+			info = plist[i]
+			return
+		}
+	}
+	return
+}
+
 func XlTest(Args []string) {
 	var Ctx Context
 
@@ -384,15 +431,19 @@ func XlTest(Args []string) {
 		}
 		fmt.Printf("\n")
 	} else {
-		fmt.Printf("schedbench not found")
-	}
+		fmt.Printf("schedbench not found, creating\n")
 
-	pool, found = Ctx.CpupoolFindByName("schedbnch")
+		var Cpumap Bitmap
+		var Poolid uint32
 
-	if found {
-		fmt.Printf("%v\n", pool)
-	} else {
-		fmt.Printf("schedbnch not found\n")
+		Cpumap.Set(15)
+
+		err, Poolid = Ctx.CpupoolCreate("schedbench", SchedulerCredit, Cpumap)
+		if err != nil {
+			fmt.Printf("Error creating cpupool: %v\n", err)
+		} else {
+			fmt.Printf("Pool id: %d\n", Poolid)
+		}
 	}
 
 	Ctx.Close()
