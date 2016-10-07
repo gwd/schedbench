@@ -191,8 +191,8 @@ func bitmapCToGo(cbm *C.libxl_bitmap) (gbm Bitmap) {
 }
 
 // Must be C.libxl_bitmap_dispose'd of afterwards
-func bitmapGotoC(gbm Bitmap, cbm *C.libxl_bitmap) {
-	C.libxl_bitmap_init(cbm)
+func bitmapGotoC(gbm Bitmap) (cbm C.libxl_bitmap) {
+	C.libxl_bitmap_init(&cbm)
 
 	size := len(gbm.bitmap)
 	cbm._map = (*C.uint8_t)(C.malloc(C.size_t(size)))
@@ -206,6 +206,8 @@ func bitmapGotoC(gbm Bitmap, cbm *C.libxl_bitmap) {
 
 	// And copy the Go array into the C array
 	copy(mapslice, gbm.bitmap)
+
+	return
 }
 
 func (bm *Bitmap) Test(bit int) (bool) {
@@ -385,8 +387,7 @@ func (Ctx *Context) CpupoolCreate(Name string, Scheduler Scheduler, Cpumap Bitma
 	var uuid C.libxl_uuid
 	C.libxl_uuid_generate(&uuid)
 
-	var cbm C.libxl_bitmap
-	bitmapGotoC(Cpumap, &cbm)
+	cbm := bitmapGotoC(Cpumap)
 	defer C.libxl_bitmap_dispose(&cbm)
 	
 	ret := C.libxl_cpupool_create(Ctx.ctx, name, C.libxl_scheduler(Scheduler),
@@ -429,8 +430,7 @@ func (Ctx *Context) CpupoolCpuadd(Poolid uint32, Cpu int) (err error) {
 // int libxl_cpupool_cpuadd_cpumap(libxl_ctx *ctx, uint32_t poolid,
 //                                 const libxl_bitmap *cpumap);
 func (Ctx *Context) CpupoolCpuaddCpumap(Poolid uint32, Cpumap Bitmap) (err error) {
-	var cbm C.libxl_bitmap
-	bitmapGotoC(Cpumap, &cbm)
+	cbm := bitmapGotoC(Cpumap)
 	defer C.libxl_bitmap_dispose(&cbm)
 	
 	ret := C.libxl_cpupool_cpuadd_cpumap(Ctx.ctx, C.uint32_t(Poolid), &cbm)
@@ -458,8 +458,7 @@ func (Ctx *Context) CpupoolCpuremove(Poolid uint32, Cpu int) (err error) {
 // int libxl_cpupool_cpuremove_cpumap(libxl_ctx *ctx, uint32_t poolid,
 //                                    const libxl_bitmap *cpumap);
 func (Ctx *Context) CpupoolCpuremoveCpumap(Poolid uint32, Cpumap Bitmap) (err error) {
-	var cbm C.libxl_bitmap
-	bitmapGotoC(Cpumap, &cbm)
+	cbm := bitmapGotoC(Cpumap)
 	defer C.libxl_bitmap_dispose(&cbm)
 	
 	ret := C.libxl_cpupool_cpuremove_cpumap(Ctx.ctx, C.uint32_t(Poolid), &cbm)
