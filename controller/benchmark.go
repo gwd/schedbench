@@ -67,7 +67,6 @@ func (l *WorkerConfig) PropagateFrom(g WorkerConfig) {
 	}
 }
 
-
 type WorkerSet struct {
 	Params WorkerParams
 	Config WorkerConfig
@@ -140,6 +139,21 @@ type BenchmarkRunData struct {
 
 type RunConfig struct {
 	Scheduler string
+	Pool string
+	Cpus []int
+}
+
+// Propagate unset values from a higher level
+func (l *RunConfig) PropagateFrom(g RunConfig) {
+	if l.Pool == "" {
+		l.Pool = g.Pool
+	}
+	if l.Scheduler == "" {
+		l.Scheduler = g.Scheduler
+	}
+	if l.Cpus == nil {
+		l.Cpus = g.Cpus
+	}
 }
 
 type BenchmarkRun struct {
@@ -159,6 +173,7 @@ type BenchmarkPlan struct {
 	// Global options for workers that will be over-ridden by Run
 	// and WorkerSet config options
 	WorkerConfig         `json:",omitempty"`
+	RunConfig RunConfig   `json:",omitempty"`
 	Runs []BenchmarkRun  `json:",omitempty"`
 }
 

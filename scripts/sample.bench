@@ -20,5 +20,8 @@
         }
     },
     "WorkerType": 1,
-    "Pool": "schedbench"
+    "RunConfig": {
+        "Pool": "schedbench",
+    	"Cpus": [ 12, 13, 14, 15 ]
+    }
 }

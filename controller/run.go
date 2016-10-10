@@ -156,34 +156,158 @@ func getCpuHz() (err error) {
 	return
 }
 
-func (run *BenchmarkRun) Ready() (ready bool, why string) {
-	// FIXME: Check WorkerType
-	// Skip this run if it's not the scheduler we want
-	if run.RunConfig.Scheduler != "" {
-		var pool CpupoolInfo
-		if run.WorkerConfig.Pool != "" {
-			var found bool
-			pool, found = Ctx.CpupoolFindByName(run.WorkerConfig.Pool)
-			if !found {
-				why = "cpupool error"
-				return
-			}
-		} else {
-			// xl defaults to cpupool 0
-			plist := Ctx.ListCpupool()
-			if len(plist) > 0 {
-				pool = plist[0]
+// If the pool is specified, use that pool; otherwise assume pool 0.
+//
+// Unspecified schedulers match any pool; unspecifiend cpu lists match
+// any pool.
+//
+// If the pool exists and the scheduler and cpu lists match the pool,
+// carry on.  (This is running the VMs in a pre-configured pool.)
+//
+// If the pool exists and either the scheduler or the cpus don't match
+// the pool, and this is pool 0, skip.
+//
+// TODO: If the scheduler matches but the cpus don't, modify the pool
+// by adding or removing cpus.  (This can be done for Pool-0 as well.)
+//
+// If the pool is not Pool-0, and the scheduler doesn't match or the
+// pool doesn't exist, but there are no cpus, skip (because we don't
+// have enough information to create the pool).
+//
+// If the pool is not Pool-0, and either the scheduler or the cpus
+// don't match, and the cpus are specified, create the pool.
+func (run *BenchmarkRun) Prep() (ready bool, why string) {
+	var pool CpupoolInfo
+	poolPresent := false
+	
+	// Generate the requested cpumap
+	var Cpumap Bitmap
+	if run.RunConfig.Cpus != nil {
+		fmt.Print("Run.Prep: Cpus: ")
+		printed := false
+		for _, i := range run.RunConfig.Cpus {
+			if printed {
+				fmt.Printf(",%d", i)
 			} else {
-				why = "cpupool error"
-				return
-			}
+				printed = true
+				fmt.Printf("%d", i)
+			}				
+			Cpumap.Set(i)
 		}
-
-		if pool.Scheduler.String() != run.RunConfig.Scheduler {
-			why = "scheduler != "+run.RunConfig.Scheduler
-			return 
+		fmt.Print("\n")
+		if Cpumap.IsEmpty() {
+			why = "Invalid (empty) cpumap"
+			return
 		}
 	}
+	
+
+	if run.RunConfig.Pool == "" {
+		fmt.Printf("Run.Prep: No pool set, using 0\n")
+		pool = Ctx.CpupoolInfo(0)
+		poolPresent = true
+	} else {
+		pool, poolPresent = Ctx.CpupoolFindByName(run.RunConfig.Pool)
+		if poolPresent {
+			fmt.Printf("Run.Prep: Pool %s found, Poolid %d\n",
+				run.RunConfig.Pool, pool.Poolid)
+		} else {
+			fmt.Printf("Run.Prep: Pool %s not found\n")
+		}
+	}
+
+	schedMatches := true
+	if run.RunConfig.Scheduler != "" &&
+		poolPresent &&
+		pool.Scheduler.String() != run.RunConfig.Scheduler {
+			schedMatches = false;
+	}
+
+	cpuMatches := true
+	if run.RunConfig.Cpus != nil {
+		if !poolPresent {
+			cpuMatches = false
+		} else {
+			for i := 0; i <= pool.Cpumap.Max(); i++ {
+				if pool.Cpumap.Test(i) != Cpumap.Test(i) {
+					fmt.Printf("Prep: cpu %d: pool %v, want %v, bailing\n",
+						i, pool.Cpumap.Test(i), Cpumap.Test(i))
+					cpuMatches = false
+					break
+				}
+			}
+		}
+	}
+		
+
+	// If we're using pool 0, and the scheduler or cpus don't
+	// match, bail; otherwise say we're ready.
+	if poolPresent && pool.Poolid == 0 {
+		if ! schedMatches {
+			why = "scheduler != "+run.RunConfig.Scheduler+", can't change"
+			return
+		}
+
+		// TODO: Actually, we can modify pool 0; leave this until we want it.
+		if ! cpuMatches {
+			why = "Cpumap mismatch"
+			return
+		}
+
+		fmt.Printf("Prep: Poolid 0, sched and cpumap matches\n")
+		ready = true
+		return
+	}
+
+	// OK, we got here it
+	if run.RunConfig.Cpus == nil {
+		// No construction information; is the cpupool ready without it?
+		if !poolPresent {
+			why = "Pool not present, no pool construction information"
+			return
+		} else if !schedMatches {
+			why = "scheduler != "+run.RunConfig.Scheduler+", no pool construction information"
+			return
+		}
+
+		// Scheduler matches, pool present, cpus not
+		// specified, just go with it
+		ready = true
+		return
+	}
+
+	// OK, we have all the information we need to create the pool we want.
+	Scheduler := SchedulerCredit
+	err := Scheduler.FromString(run.RunConfig.Scheduler)
+	if err != nil {
+		why = "Invalid scheduler: "+run.RunConfig.Scheduler
+		return
+	}
+
+	// Destroy the pool if it's present;
+	if poolPresent {
+		err := Ctx.CpupoolDestroy(pool.Poolid)
+		if err != nil {
+			fmt.Printf("Trying to destroy pool: %v\n", err)
+			why = "Couldn't destroy cpupool"
+			return
+		}
+	}
+
+	// Free the cpus we need;
+	err = Ctx.CpupoolMakeFree(Cpumap)
+	if err != nil {
+		why = "Couldn't free cpus"
+		return
+	}
+
+	// And create the pool.
+	err, _ = Ctx.CpupoolCreate("schedbench", Scheduler, Cpumap)
+	if err != nil {
+		why = "Couldn't create cpupool"
+		return
+	}
+
 	ready = true
 	return 
 }
@@ -191,13 +315,18 @@ func (run *BenchmarkRun) Ready() (ready bool, why string) {
 func (run *BenchmarkRun) Run() (err error) {
 	for wsi := range run.WorkerSets {
 		run.WorkerSets[wsi].Config.PropagateFrom(run.WorkerConfig)
+		if run.WorkerSets[wsi].Config.Pool == "" {
+			run.WorkerSets[wsi].Config.Pool = run.RunConfig.Pool
+		}
 		run.WorkerSets[wsi].Params.SetkHZ(CpukHZ)
+		
 	}
 	
 	Workers, err := NewWorkerList(run.WorkerSets, WorkerXen)
 	if err != nil {
 		fmt.Println("Error creating workers: %v", err)
 		return
+
 	}
 	
 	report := make(chan WorkerReport)
@@ -272,7 +401,8 @@ func (plan *BenchmarkPlan) Run() (err error) {
 		r := &plan.Runs[i];
 		if ! r.Completed { 
 			r.WorkerConfig.PropagateFrom(plan.WorkerConfig)
-			ready, why := r.Ready()
+			r.RunConfig.PropagateFrom(plan.RunConfig)
+			ready, why := r.Prep()
 			if ready {
 				fmt.Printf("Running test [%d] %s\n", i, r.Label)
 				err = r.Run()

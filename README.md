@@ -113,7 +113,10 @@ This is sample.bench:
             }
         },
         "WorkerType": 1,
-        "Pool": "schedbench"
+        "RunConfig": {
+            "Pool": "schedbench",
+    	    "Cpus": [ 12, 13, 14, 15 ]
+        }
     }
 
 The `WorkerPresets` section defines two workers, `A` and `B`.  See
@@ -125,17 +128,39 @@ include `Count` numbers of both `A` and `B`.  In the default case, it
 will run one `A` and one `B`, then two `A` workers and two `B`
 workers, then four `A` workers and four `B` workers, and so on.
 
-`Pool` is the cpupool in which to run the workers.  This allows you to
-change the scheduler you're testing without having to reboot.  To run
-in the default cpupool, simply remove this line.
+The `Schedulers` list tells SimpleMatrix to add the listed schedulers
+into its matrix; i.e., run all the tests with `credit`, then run all the
+tests with `credit2`.
 
-`schedbench plan` will make one complete set of "runs" for each
-scheduler listed in `Simplematrix.Schedulers`.  When `schedbench run`
-goes through the runs, it will check the scheduler of the target
-cpupool, and skip the run if they don't match.  That way you can set
-up your scheduler / cpupool with one scheduler, run `schedbench plan`,
-then change the scheduler and run it again to get the runs for all
-schedulers in the same file for easy comparison.
+`RunConfig` Contains global configuration inherited by each run if
+none are given.  If you specify a `Pool` name, it will try to run all
+the workers in that pool.  If no name is given, it defaults to
+`Pool-0`.  You can also specify `Cpus`, which is a list of cpus that
+should be in the target pool.
+
+When `schedbench` runs each test, it will check to see if the
+specified `RunConfig` configuration items match the pool to run the
+VMs in.  If everything matches, then it runs the test.
+
+If things don't match, and `schedbench` is able to create the pool,
+then it creates the pool with the new parameters.  `schedbench` is
+able to create a pool if the pool is not `Pool-0` and if the `Cpus` are
+specified.
+
+If the parameters don't match, and `schedbench` is not able to create
+the pool, then it skips the test.
+
+This allows you either to let `schedbench` manage all the cpupool
+operations (by specifying a `Pool` other than the default pool, and
+`Cpus`), or to use a pool but manage it yourself (by specifying `Pool`
+but no cpupool), or to simply use the default cpupool (by not
+specifying `Pool`).
+
+Note that if you don't specify `Pool`, but you do specify `Cpus`,
+`schedbench` will check to make sure that the default pool contains
+the selected cpus and skip the tests if not.  Specifying `Cpus` when
+using the default cpupool is recommended to make sure that you haven't
+forgotten anything.
 
 # Future work
 
