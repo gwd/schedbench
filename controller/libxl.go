@@ -270,7 +270,7 @@ func bitmapGotoC(gbm Bitmap) (cbm C.libxl_bitmap) {
 
 func (bm *Bitmap) Test(bit int) (bool) {
 	ubit := uint(bit)
-	if (bit > bm.Max()) {
+	if (bit > bm.Max() || bm.bitmap == nil) {
 		return false
 	}
 	
@@ -294,7 +294,7 @@ func (bm *Bitmap) SetRange(start int, end int) {
 
 func (bm *Bitmap) Clear(bit int) {
 	ubit := uint(bit)
-	if (bit > bm.Max()) {
+	if (bit > bm.Max() || bm.bitmap == nil) {
 		return
 	}
 	
@@ -308,7 +308,7 @@ func (bm *Bitmap) ClearRange(start int, end int) {
 }
 
 func (bm *Bitmap) Max() (int) {
-	return len(bm.bitmap) * 8
+	return len(bm.bitmap) * 8 - 1
 }
 
 func (bm *Bitmap) IsEmpty() (bool) {
