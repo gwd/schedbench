@@ -312,14 +312,43 @@ func (run *BenchmarkRun) Prep() (ready bool, why string) {
 	return 
 }
 
+func (run *BenchmarkRun) GetCpumap() (Cpumap Bitmap) {
+	if run.RunConfig.Pool == "" {
+		fmt.Printf("Run.Prep: No pool set, using 0\n")
+		pool := Ctx.CpupoolInfo(0)
+		Cpumap = pool.Cpumap
+	} else {
+		pool, poolPresent := Ctx.CpupoolFindByName(run.RunConfig.Pool)
+		if poolPresent {
+			Cpumap = pool.Cpumap
+		} else {
+			panic("run.GetCpumap(): Pool "+run.RunConfig.Pool+" not found!")
+		}
+	}
+	return
+}
+
 func (run *BenchmarkRun) Run() (err error) {
 	for wsi := range run.WorkerSets {
-		run.WorkerSets[wsi].Config.PropagateFrom(run.WorkerConfig)
-		if run.WorkerSets[wsi].Config.Pool == "" {
-			run.WorkerSets[wsi].Config.Pool = run.RunConfig.Pool
+		conf := &run.WorkerSets[wsi].Config
+		
+		conf.PropagateFrom(run.WorkerConfig)
+		if conf.Pool == "" {
+			conf.Pool = run.RunConfig.Pool
 		}
 		run.WorkerSets[wsi].Params.SetkHZ(CpukHZ)
 		
+		if *run.RunConfig.NumaDisable {
+			if conf.SoftAffinity != "" {
+				err = fmt.Errorf("Cannot disable Numa if SoftAffinity is set!")
+				return
+			}
+			// Disable libxl NUMA by setting the soft
+			// affinity to the set of cpus in the cpupool
+		 	conf.SoftAffinity = run.GetCpumap().String()
+			fmt.Printf("Setting SoftAffinity to %s to disable NUMA placement\n",
+				conf.SoftAffinity)
+		}
 	}
 	
 	Workers, err := NewWorkerList(run.WorkerSets, WorkerXen)

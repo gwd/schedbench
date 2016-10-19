@@ -142,6 +142,7 @@ type RunConfig struct {
 	Scheduler string
 	Pool string
 	Cpus []int
+	NumaDisable *bool `json:",omitempty"`
 }
 
 // Propagate unset values from a higher level
@@ -154,6 +155,9 @@ func (l *RunConfig) PropagateFrom(g RunConfig) {
 	}
 	if l.Cpus == nil {
 		l.Cpus = g.Cpus
+	}
+	if l.NumaDisable == nil {
+		l.NumaDisable = g.NumaDisable
 	}
 }
 
