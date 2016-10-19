@@ -26,6 +26,7 @@ type PlanSimpleMatrix struct {
 	Schedulers []string
 	Workers []string
 	Count []int
+	NumaDisable []bool
 }
 
 type PlanInput struct {
@@ -120,6 +121,27 @@ func (plan *BenchmarkPlan) ExpandInput() (err error) {
 				run := base
 				run.RunConfig.Scheduler = s
 				run.Label = run.Label+" "+s
+				b = append(b, run)
+			}
+		}
+		a = b
+		b = nil
+	}
+
+	// ...and NumaDisable
+	if len(plan.Input.SimpleMatrix.NumaDisable) > 0 {
+		for _, base := range a {
+			for _, d := range plan.Input.SimpleMatrix.NumaDisable {
+				run := base
+				// Need to make a copy of this so that
+				// we have a pointer to use as a tristate
+				run.RunConfig.NumaDisable = new(bool)
+				*run.RunConfig.NumaDisable = d
+				if d {
+					run.Label = run.Label+" NumaOff"
+				} else {
+					run.Label = run.Label+" NumaOn "
+				}
 				b = append(b, run)
 			}
 		}
