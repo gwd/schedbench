@@ -91,6 +91,10 @@ func (w *XenWorker) Init(p WorkerParams, g WorkerConfig) (err error) {
 		fmt.Fprintf(cfg, "pool = '%s'\n", g.Pool)
 	}
 
+	if g.SoftAffinity != "" {
+		fmt.Fprintf(cfg, "cpus_soft = '%s'\n", g.SoftAffinity)
+	}
+
 	
 	// xl create -p [filename]
 	{

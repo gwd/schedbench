@@ -58,6 +58,7 @@ func (l *WorkerParams) SetkHZ(kHZ uint64) {
 
 type WorkerConfig struct {
 	Pool string
+	SoftAffinity string
 }
 
 // Propagate unset values from a higher level
