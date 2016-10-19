@@ -337,6 +337,51 @@ func (a Bitmap) And(b Bitmap) (c Bitmap) {
 	return
 }
 
+func (bm Bitmap) String() (s string) {
+	lastOnline := false
+	crange := false
+	printed := false
+	var i int
+	/// --x-xxxxx-x -> 2,4-8,10
+	/// --x-xxxxxxx -> 2,4-10
+	for i = 0; i <= bm.Max(); i++ {
+		if bm.Test(i) {
+			if !lastOnline {
+				// Switching offline -> online, print this cpu
+				if printed {
+					s += ","
+				}
+				s += fmt.Sprintf("%d", i)
+				printed = true
+			} else if !crange {
+				// last was online, but we're not in a range; print -
+				crange = true
+				s += "-"
+			} else {
+				// last was online, we're in a range,  nothing else to do
+			}
+			lastOnline = true
+		} else {
+			if lastOnline {
+				// Switching online->offline; do we need to end a range?
+				if crange {
+					s += fmt.Sprintf("%d", i-1)
+				}
+			}
+			lastOnline = false
+			crange = false
+		}
+	}
+	if lastOnline {
+		// Switching online->offline; do we need to end a range?
+		if crange {
+			s += fmt.Sprintf("%d", i-1)
+		}
+	}
+
+	return
+}
+
 // const char *libxl_scheduler_to_string(libxl_scheduler p);
 func (s Scheduler) String() (string) {
 	cs := C.libxl_scheduler_to_string(C.libxl_scheduler(s))
@@ -608,6 +653,18 @@ func (Ctx *Context) CpupoolMakeFree(Cpumap Bitmap) (err error) {
 }
 
 func XlTest(Args []string) {
+	var Cpumap Bitmap
+
+	Cpumap.Set(2)
+	Cpumap.SetRange(4, 8)
+	Cpumap.Set(10)
+
+	fmt.Printf("Cpumap: %v\n", Cpumap)
+
+	Cpumap.Set(9)
+
+	fmt.Printf("Cpumap: %v\n", Cpumap)
+
 	var Ctx Context
 
 	err := Ctx.Open()
@@ -635,7 +692,7 @@ func XlTest(Args []string) {
 		}
 	}
 
-	var Cpumap Bitmap
+	Cpumap = Bitmap{}
 
 	Cpumap.SetRange(12, 15)
 
