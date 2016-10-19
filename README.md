@@ -109,7 +109,8 @@ This is sample.bench:
                     "credit2"
                 ],
                 "Workers": [ "A", "B" ],
-                "Count": [ 1, 2, 4, 8, 16 ]
+                "Count": [ 1, 2, 4, 8, 16 ],
+                "NumaDisable": [ true, false ]
             }
         },
         "WorkerType": 1,
@@ -131,6 +132,14 @@ workers, then four `A` workers and four `B` workers, and so on.
 The `Schedulers` list tells SimpleMatrix to add the listed schedulers
 into its matrix; i.e., run all the tests with `credit`, then run all the
 tests with `credit2`.
+
+By default, libxl will do automatic NUMA placement for guests with no
+cpu affinity specified.  Inside `SimpleMatrix`, you can also include a
+`NumaDisable` list, of the form `"NumaDisable": [ true, false ]`.  For
+runs with `NumaDisable` set to `true`, the soft affinity of all
+workers will be set equal to the cpumask of the pool (thus disabling
+libxl's automatic NUMA placement).  For `NumaDisable` set to `false`
+(the default), no soft affinity will be set.
 
 `RunConfig` Contains global configuration inherited by each run if
 none are given.  If you specify a `Pool` name, it will try to run all

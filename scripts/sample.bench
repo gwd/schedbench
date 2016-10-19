@@ -16,7 +16,8 @@
                 "credit2"
             ],
             "Workers": [ "A", "B" ],
-            "Count": [ 1, 2, 4, 8, 16 ]
+            "Count": [ 1, 2, 4, 8, 16 ],
+            "NumaDisable": [ true, false ]
         }
     },
     "WorkerType": 1,
