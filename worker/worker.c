@@ -186,7 +186,7 @@ void report(int64_t n) {
 }
 
 void worker_setup(void) {
-    work.size = PAGE_SIZE;
+    work.size = PAGE_SIZE * 16;
     work.data = mmap(NULL, work.size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     
     assert(work.data != MAP_FAILED);
