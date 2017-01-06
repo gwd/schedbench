@@ -29,7 +29,6 @@ import (
 
 type XenWorker struct {
 	id WorkerId
-	Ctx Context
 	vmname string
 	domid int
 	consoleCmd *exec.Cmd
@@ -237,7 +236,9 @@ func (w *XenWorker) DumpLog(f io.Writer) (err error) {
 // FIXME: Return an error
 func (w *XenWorker) Process(report chan WorkerReport, done chan WorkerId) {
 	// // xl unpause [vmname]
-	//err := xg.Ctx.DomainUnpause(Domid(w.domid))
+	if ! Ctx.IsOpen() {
+		panic("Ctx not open!")
+	}
 	err := Ctx.DomainUnpause(Domid(w.domid))
 	if err != nil {
 		fmt.Printf("Error unpausing domain: %v\n", err)
